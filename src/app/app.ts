@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CATEGORY_COLORS } from './models/task.model';
+import { version } from '../../package.json';
 import { TaskService } from './services/task.service';
 import { ThemeService } from './services/theme.service';
 import { CategoryManager } from './components/category-manager/category-manager';
@@ -16,6 +17,8 @@ export class App {
   protected readonly taskService = inject(TaskService);
   protected readonly theme = inject(ThemeService);
   protected readonly colors = CATEGORY_COLORS;
+  /** Wersja czytana z package.json – zmieniasz ją w jednym miejscu. */
+  protected readonly version = version;
 
   protected readonly showCategories = signal(false);
   private readonly selectedFilter = signal<string | null>(null);

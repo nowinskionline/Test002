@@ -12,7 +12,7 @@
 
 /* Style dla przeciągania (Angular CDK drag & drop). */
 .cdk-drag-preview {
-  @apply rounded-xl shadow-2xl ring-2 ring-indigo-500/60;
+  @apply rounded-xl shadow-2xl ring-2 ring-blue-500/60;
 }
 .cdk-drag-placeholder {
   @apply opacity-30;

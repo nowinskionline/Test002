@@ -2,7 +2,7 @@ import { DOCUMENT, effect, inject, Injectable, signal } from '@angular/core';
 import { loadJson, saveJson } from './storage';
 
 export type Theme = 'dark' | 'light';
-const THEME_KEY = 'taskflow.theme';
+const THEME_KEY = 'todoartur.theme';
 
 @Injectable({ providedIn: 'root' })
 export class ThemeService {

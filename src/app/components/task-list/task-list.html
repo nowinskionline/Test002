@@ -15,7 +15,7 @@
       }
     </ul>
   } @else {
-    <div class="rounded-xl border border-dashed border-zinc-300 px-4 py-10 text-center text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+    <div class="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400">
       @if (completed().length) {
         <p class="text-lg">Wszystko zrobione 🎉</p>
       } @else {
@@ -26,12 +26,12 @@
   }
 
   @if (completed().length) {
-    <label class="flex w-fit cursor-pointer items-center gap-2 text-sm text-zinc-600 select-none dark:text-zinc-400">
+    <label class="flex w-fit cursor-pointer items-center gap-2 text-sm text-slate-600 select-none dark:text-slate-400">
       <input
         type="checkbox"
         [checked]="showCompleted()"
         (change)="showCompleted.set(!showCompleted())"
-        class="size-4 accent-indigo-500"
+        class="size-4 accent-blue-500"
       />
       Pokaż ukończone ({{ completed().length }})
     </label>

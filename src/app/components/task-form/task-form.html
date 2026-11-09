@@ -7,14 +7,14 @@
     placeholder="Co masz do zrobienia?"
     maxlength="200"
     autocomplete="off"
-    class="min-w-0 flex-1 rounded-xl border border-zinc-300 bg-white px-4 py-3 outline-none placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-zinc-700 dark:bg-zinc-900"
+    class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-900"
   />
   <div class="flex gap-2">
     <select
       name="category"
       [(ngModel)]="categoryId"
       aria-label="Kategoria"
-      class="min-w-0 flex-1 rounded-xl border border-zinc-300 bg-white px-3 py-3 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 sm:flex-none dark:border-zinc-700 dark:bg-zinc-900"
+      class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 sm:flex-none dark:border-slate-700 dark:bg-slate-900"
     >
       @for (category of categories(); track category.id) {
         <option [value]="category.id">{{ category.name }}</option>
@@ -23,7 +23,7 @@
     <button
       type="submit"
       [disabled]="!title().trim()"
-      class="rounded-xl bg-indigo-600 px-5 py-3 font-medium text-white transition hover:bg-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+      class="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-500 focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
     >
       Dodaj
     </button>

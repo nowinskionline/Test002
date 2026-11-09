@@ -6,7 +6,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "task-flow": {
+    "todo-artur": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -56,10 +56,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "task-flow:build:production"
+              "buildTarget": "todo-artur:build:production"
             },
             "development": {
-              "buildTarget": "task-flow:build:development"
+              "buildTarget": "todo-artur:build:development"
             }
           },
           "defaultConfiguration": "development"

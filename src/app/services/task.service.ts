@@ -3,8 +3,8 @@ import { moveItemInArray } from '@angular/cdk/drag-drop';
 import { Category, CategoryColor, DEFAULT_CATEGORIES, Task } from '../models/task.model';
 import { createId, loadJson, saveJson } from './storage';
 
-export const TASKS_KEY = 'taskflow.tasks';
-export const CATEGORIES_KEY = 'taskflow.categories';
+export const TASKS_KEY = 'todoartur.tasks';
+export const CATEGORIES_KEY = 'todoartur.categories';
 
 /**
  * Jedyne źródło prawdy o zadaniach i kategoriach.

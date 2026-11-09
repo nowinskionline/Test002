@@ -52,8 +52,8 @@ export const CATEGORY_COLORS: Record<CategoryColor, { label: string; badge: stri
   },
   slate: {
     label: 'Szary',
-    badge: 'bg-zinc-200 text-zinc-700 dark:bg-zinc-500/20 dark:text-zinc-300',
-    dot: 'bg-zinc-400',
+    badge: 'bg-slate-200 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
+    dot: 'bg-slate-400',
   },
 };
 

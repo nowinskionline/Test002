@@ -1,6 +1,6 @@
 {
-  "name": "task-flow",
-  "version": "0.0.0",
+  "name": "todo-artur",
+  "version": "1.0.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
