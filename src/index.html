@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pl" class="dark">
+<head>
+  <meta charset="utf-8">
+  <title>Task Flow</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Task Flow – prosta lista zadań z kategoriami">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <!-- Ustawia motyw zanim Angular wystartuje, żeby nie było "mignięcia" jasnego ekranu. -->
+  <script>
+    try {
+      if (localStorage.getItem('taskflow.theme') === '"light"') {
+        document.documentElement.classList.remove('dark');
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body class="min-h-screen bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100">
+  <app-root></app-root>
+</body>
+</html>

@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+
+/* Tryb ciemny włączany klasą .dark na <html> (zamiast ustawień systemu). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+}
+:root.dark {
+  color-scheme: dark;
+}
+
+/* Style dla przeciągania (Angular CDK drag & drop). */
+.cdk-drag-preview {
+  @apply rounded-xl shadow-2xl ring-2 ring-indigo-500/60;
+}
+.cdk-drag-placeholder {
+  @apply opacity-30;
+}
+.cdk-drag-animating,
+.cdk-drop-list-dragging .cdk-drag:not(.cdk-drag-placeholder) {
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}

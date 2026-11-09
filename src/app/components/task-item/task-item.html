@@ -1,0 +1,92 @@
+<div
+  class="group flex items-start gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-3 shadow-sm transition dark:border-zinc-800 dark:bg-zinc-900"
+  [class.opacity-60]="task().completed"
+>
+  @if (draggable()) {
+    <button
+      type="button"
+      cdkDragHandle
+      aria-label="Przeciągnij, aby zmienić kolejność"
+      class="mt-0.5 cursor-grab touch-none rounded p-0.5 text-zinc-400 hover:text-zinc-600 active:cursor-grabbing dark:hover:text-zinc-200"
+    >
+      <svg class="size-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <circle cx="7" cy="5" r="1.5" /><circle cx="13" cy="5" r="1.5" />
+        <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
+        <circle cx="7" cy="15" r="1.5" /><circle cx="13" cy="15" r="1.5" />
+      </svg>
+    </button>
+  }
+
+  <input
+    type="checkbox"
+    [checked]="task().completed"
+    (change)="toggled.emit()"
+    [attr.aria-label]="(task().completed ? 'Oznacz jako nieukończone: ' : 'Oznacz jako ukończone: ') + task().title"
+    class="mt-1 size-5 shrink-0 cursor-pointer accent-indigo-500"
+  />
+
+  @if (editing()) {
+    <form (ngSubmit)="save()" (keydown.escape)="cancel()" class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row">
+      <input
+        #titleInput
+        name="title"
+        [(ngModel)]="draftTitle"
+        maxlength="200"
+        aria-label="Treść zadania"
+        class="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-zinc-700 dark:bg-zinc-950"
+      />
+      <select
+        name="category"
+        [(ngModel)]="draftCategoryId"
+        aria-label="Kategoria"
+        class="rounded-lg border border-zinc-300 bg-white px-2 py-1.5 outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-950"
+      >
+        @for (c of categories(); track c.id) {
+          <option [value]="c.id">{{ c.name }}</option>
+        }
+      </select>
+      <div class="flex gap-2">
+        <button type="submit" [disabled]="!draftTitle().trim()" class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40">
+          Zapisz
+        </button>
+        <button type="button" (click)="cancel()" class="rounded-lg px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+          Anuluj
+        </button>
+      </div>
+    </form>
+  } @else {
+    <div class="min-w-0 flex-1" (dblclick)="startEdit()">
+      <p class="break-words" [class.line-through]="task().completed">{{ task().title }}</p>
+      @if (category(); as c) {
+        <span class="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium" [class]="colors[c.color].badge">
+          {{ c.name }}
+        </span>
+      }
+    </div>
+
+    <div class="flex shrink-0 gap-1 transition sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+      <button
+        type="button"
+        (click)="startEdit()"
+        [attr.aria-label]="'Edytuj: ' + task().title"
+        title="Edytuj"
+        class="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+      >
+        <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m16.9 4.6 2.5 2.5M4 20l4.2-.9 11-11a1.8 1.8 0 0 0 0-2.5l-.8-.8a1.8 1.8 0 0 0-2.5 0l-11 11L4 20Z" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        (click)="removed.emit()"
+        [attr.aria-label]="'Usuń: ' + task().title"
+        title="Usuń"
+        class="rounded-lg p-1.5 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10 dark:hover:text-rose-400"
+      >
+        <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
+        </svg>
+      </button>
+    </div>
+  }
+</div>
