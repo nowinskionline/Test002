@@ -1,59 +1,77 @@
-# Wyodrębnione wymagania – terminy zadań
+# Wyodrębnione wymagania: zaległości, szybki wrzut, tryb energii
 
-Źródła: `przyklad-terminy-zadan.md` (notatki, skrót: notatki) oraz `przyklad-terminy-zadan-decyzje.md` (decyzje Artura, skrót: decyzje). Decyzje mają pierwszeństwo przed notatkami.
+Źródła: `pomysly-zaleglosci-inbox-energia.md` (notatki), `pomysly-zaleglosci-inbox-energia-decyzje.md` (decyzje, ważniejsze od notatek). Tło: `docs/ba/output/00-grill-questions.md`.
 
-Stan obecny aplikacji (README, `task.model.ts`): zadanie ma `id`, `title`, `categoryId`, `completed`, `createdAt`. Istnieją: dodawanie/edycja/usuwanie z "Cofnij", kategorie, filtr po kategorii, ukryte ukończone z przełącznikiem, ręczna kolejność drag & drop, motywy, zapis w `localStorage`.
+Stan wyjściowy (istniejący): `Task` ma `id, title, categoryId, completed, createdAt, dueDate?, dueTime?`. Aplikacja ma kategorie (Praca/Dom/Inne + własne), filtr kategorii, filtr "Dziś" (dziś + zaległe, łączony z kategorią), etykietę "Po terminie" (od północy po dacie terminu), ręczną kolejność drag & drop (zawsze nadrzędną), jednorazowe "Ułóż po terminie", ukryte ukończone, `localStorage`, brak backendu i kont. Zadanie bez terminu nigdy nie jest zaległe.
+
+Oznaczenia: `[NOWE]` - nowa funkcja, `[ZMIANA ISTNIEJĄCEGO]` - zmiana tego, co już jest.
 
 ## Cel biznesowy (Why)
-
-Użytkownik chce planować zadania w czasie: nadawać im termin, widzieć, co jest zaległe, i skupić się na tym, co ważne dziś. (źródło: notatki, "chciałbym żeby zadania miały termin"; "może widok 'Dziś' – tylko to co na dziś + zaległe")
+Skrócić drogę do decyzji "co teraz robię" i uniknąć zarówno przytłoczenia zaległościami, jak i chowania ich. Kryterium sukcesu wspólne dla wszystkich trzech funkcji: po gorszym dniu w 2 minuty wiem, od czego zacząć; funkcje nie mogą dokładać klikania (źródło: decyzje.md, "Kryterium sukcesu (P1.7, P3.8)").
 
 ## Aktorzy / role użytkowników
-
-- Użytkownik aplikacji – jedyna rola; brak kont i backendu. (źródło: kontekst produktu)
+- Użytkownik (Artur): jedyna rola, jedna przeglądarka, bez kont i bez backendu.
 
 ## Wymagania funkcjonalne
 
-- **FR-01 [ZMIANA ISTNIEJĄCEGO]** Zadanie może mieć opcjonalny termin: data + godzina. Godzina jest opcjonalna; sama data jest poprawnym terminem. (źródło: decyzje Q-01, "termin = data + godzina. Godzina jest opcjonalna"; notatki, "termin nie jest obowiązkowy")
-- **FR-02 [ZMIANA ISTNIEJĄCEGO]** Termin można ustawić przy dodawaniu zadania i przy jego edycji. (źródło: notatki, "chciałbym żeby zadania miały termin"; wynika z istniejących funkcji dodawania/edycji)
-- **FR-03 [ZMIANA ISTNIEJĄCEGO]** Istniejące zadania zapisane bez terminu pozostają bez terminu i działają jak dotąd. (źródło: notatki, "stare zadania mają zostać bez terminu")
-- **FR-04 [NOWE]** Zadanie nieukończone jest "po terminie" od północy następnego dnia po dacie terminu (lokalna strefa czasowa przeglądarki). Zadanie z terminem na dziś (z godziną lub bez) nie jest zaległe; godzina nie przyspiesza statusu zaległości. (źródło: decyzje Q-02, "po terminie dopiero po północy… Zadanie z terminem 'dziś' NIE jest zaległe")
-- **FR-05 [ZMIANA ISTNIEJĄCEGO]** Zadanie po terminie jest wyróżnione kolorem czerwonym oraz tekstową etykietą "Po terminie". (źródło: notatki, "wyróżniać, np. na czerwono"; decyzje Q-07, "tekstowa etykieta 'Po terminie'")
-- **FR-06 [ZMIANA ISTNIEJĄCEGO]** Ukończone zadania nie są wyróżniane jako po terminie. (źródło: decyzje Q-03, "ukończone zadania nie są wyróżniane na czerwono")
-- **FR-07 [ZMIANA ISTNIEJĄCEGO]** Termin jest wyświetlany na zadaniu względnie: "dziś", "jutro", dalej np. "pt 28.11"; jeśli jest godzina, jest dopisana ("dziś 14:00"). (źródło: decyzje Q-08, "'dziś', 'jutro', a dalej 'pt 28.11'")
-- **FR-08 [ZMIANA ISTNIEJĄCEGO]** Filtr "Dziś" jako dodatkowy filtr obok filtra kategorii (nie osobny widok). Pokazuje zadania z terminem na dziś oraz zaległe i łączy się z filtrem kategorii. (źródło: decyzje Q-05, "dodatkowy filtr obok filtra kategorii… Łączy się z filtrem kategorii"; notatki, "widok 'Dziś'")
-- **FR-09 [NOWE]** Ręczna kolejność (drag & drop) jest zawsze nadrzędna; nie ma trwałego trybu sortowania po terminie. (źródło: decyzje Q-06, "ręczna kolejność… jest zawsze ważniejsza. Nie ma trwałego trybu sortowania po terminie")
-- **FR-10 [NOWE]** Dopuszczalna jednorazowa akcja "Ułóż po terminie", która przestawia ręczną kolejność (zadania bez terminu na koniec); potem użytkownik dalej przeciąga ręcznie. (źródło: decyzje Q-06, "dopuszczalna jest jednorazowa akcja 'Ułóż po terminie'"; notatki, "fajnie by było sortować po terminie")
+### Pomoc w ogarnięciu zaległości
+- **FR-01 [NOWE]** Przycisk "Ogarnij zaległe" uruchamia podpowiedź na żądanie użytkownika. Aplikacja nie wykrywa "gorszego dnia" automatycznie i nie wyświetla powiadomień. (źródło: decyzje.md, "tylko na żądanie, przyciskiem 'Ogarnij zaległe'")
+- **FR-02 [NOWE]** Podpowiedź pokazuje 3 nieukończone zadania, które są zaległe lub mają termin na dziś (definicje jak w istniejącym filtrze "Dziś"), wybrane według ręcznej kolejności użytkownika. (źródło: decyzje.md, "3 zadania (zaległe + na dziś, nieukończone) według ręcznej kolejności")
+- **FR-03 [NOWE]** Pod 3 zadaniami jest rozwijane "+X więcej" z pozostałymi zaległymi i dzisiejszymi zadaniami; X to ich liczba. Żadne zadanie nie znika z aplikacji. (źródło: decyzje.md, "rozwijane '+X więcej'"; kryterium P1.7 z grill-questions.md)
+- **FR-04 [NOWE]** Akcja nie zmienia żadnych danych zadań, w tym terminów. Reszta listy pozostaje widoczna. (źródło: decyzje.md, "Aplikacja nie zmienia danych (terminów) sama"; "reszta zostaje widoczna")
+- **FR-05 [NOWE]** Wybór zadań nie używa ukrytego algorytmu (bez własnej punktacji, bez sortowania po wieku). (źródło: decyzje.md, "Bez ukrytego algorytmu")
+
+### Szybki wrzut
+- **FR-06 [NOWE]** Szybki wrzut zadania wymaga wyłącznie tytułu; Enter zatwierdza. Kategoria i termin są dodawane później. (źródło: decyzje.md, "tylko tytuł, Enter = gotowe")
+- **FR-07 [NOWE]** Zadanie dodane szybkim wrzutem trafia na główną listę (bez osobnego Inboxu) i dostaje flagę "do przejrzenia". (źródło: decyzje.md, "na główną listę z flagą 'do przejrzenia' (bez osobnego Inboxa)")
+- **FR-08 [NOWE]** Licznik "do przejrzenia: X" z filtrem pokazującym tylko oznaczone zadania. (źródło: decyzje.md, "licznik 'do przejrzenia: X' z filtrem")
+- **FR-09 [NOWE]** Flaga "do przejrzenia" znika automatycznie, gdy zadanie dostanie kategorię lub termin, albo po kliknięciu "OK" przy zadaniu. (źródło: decyzje.md, "Flaga znika sama, gdy zadanie dostanie kategorię lub termin, albo po kliknięciu 'OK'")
+- **FR-10 [NOWE]** Zadania "do przejrzenia" nie są kasowane automatycznie. (źródło: decyzje.md, "Bez automatycznego kasowania")
+
+### Tryb energii / kontekstu
+- **FR-11 [NOWE]** Opcjonalne, ręczne oznaczenie trudności zadania: "lekkie" / "ciężkie", ustawiane przy dodawaniu/edycji. Domyślnie nieoznaczone. Wymaga nowego pola w `Task`. (źródło: decyzje.md, "ręczne, opcjonalne oznaczenie przy zadaniu: lekkie / ciężkie. Domyślnie nieoznaczone")
+- **FR-12 [NOWE]** Ręczny przełącznik stanu "mam siłę / jestem wypruty", działający jak filtr łączony z filtrem "Dziś" i filtrem kategorii. (źródło: decyzje.md, "działa jak filtr (łączy się z 'Dziś' i kategorią)")
+- **FR-13 [NOWE]** Zaległe i dzisiejsze zadania są zawsze widoczne niezależnie od wybranego trybu. (źródło: decyzje.md, "Zaległe i dzisiejsze zadania są zawsze widoczne niezależnie od trybu")
+- **FR-14 [NOWE]** Zadania bez oznaczenia trudności są zawsze pokazywane; tryb ukrywa tylko zadania jawnie oznaczone jako niepasujące do stanu. (źródło: decyzje.md, "zadania bez oznaczenia trudności są POKAZYWANE")
+- **FR-15 [NOWE]** Miejsce/kontekst realizuje istniejący filtr kategorii (Dom, Praca, własne); nie powstaje nowe pole miejsca. (źródło: decyzje.md, "istniejący filtr kategorii... Bez nowego pola")
+
+### Zmiany istniejącego zachowania
+- **FR-16 [ZMIANA ISTNIEJĄCEGO]** Model `Task` zyskuje pola: flaga "do przejrzenia" i trudność; zadania zapisane wcześniej w `localStorage` (bez tych pól) muszą działać bez migracji ręcznej, jako "nieoznaczone" i bez flagi. (wniosek z decyzji: nowe pola są opcjonalne i domyślnie puste; źródło: decyzje.md, "Domyślnie nieoznaczone"; grill-questions.md, "Wymaga migracji danych")
+- **FR-17 [ZMIANA ISTNIEJĄCEGO]** Obecny formularz dodawania zadania pozostaje w pełnym zakresie (tytuł, kategoria, termin); szybki wrzut jest dodatkową ścieżką z samym tytułem. Zadanie dodane pełnym formularzem nie dostaje flagi "do przejrzenia". Zob. Q-01, Q-02.
 
 ## Wymagania niefunkcjonalne
-
-- **NFR-01** Dane (w tym terminy) są zapisywane w `localStorage`, bez backendu; odczyt starych danych bez terminu nie może się psuć. (źródło: kontekst produktu; notatki, "stare zadania mają zostać bez terminu")
-- **NFR-02** Dostępność: informacja o zaległości nie może opierać się wyłącznie na kolorze – wymagana etykieta tekstowa. (źródło: decyzje Q-07, "(dostępność)")
-- **NFR-03** Wszystkie obliczenia dat ("dziś", "jutro", zaległość) używają lokalnej strefy czasowej przeglądarki. (źródło: decyzje Q-02, "Lokalna strefa czasowa przeglądarki")
-- **NFR-04** Wyróżnienie zaległych zadań musi być czytelne w jasnym i ciemnym motywie. (źródło: README, "jasny i ciemny motyw"; wniosek z istniejącej funkcji – do potwierdzenia, zob. Q-05)
+- **NFR-01** Szybki wrzut i "Ogarnij zaległe" nie mogą dokładać klikania względem obecnego przepływu: wrzut to wpisanie tytułu i Enter. (źródło: decyzje.md, "nie dokładać klikania")
+- **NFR-02** Po gorszym dniu użytkownik wie, od czego zacząć, w ok. 2 minuty. (źródło: decyzje.md, "w 2 minuty wiem, od czego zacząć")
+- **NFR-03** Zachowanie deterministyczne i testowalne: bez zgadywania trudności, stanu ani gorszego dnia. (źródło: decyzje.md, "Poza zakresem v1")
+- **NFR-04** Dane nadal wyłącznie w `localStorage`, bez backendu; zapis i obsługa błędów zapisu zgodnie z istniejącym mechanizmem. (kontekst: README.md)
+- **NFR-05** Istniejące dane (w tym uszkodzone/backup) nie mogą być utracone po dodaniu nowych pól. (wniosek z FR-16)
 
 ## Reguły biznesowe i ograniczenia
-
-- **BR-01** Termin nie jest obowiązkowy. (źródło: notatki, "termin nie jest obowiązkowy")
-- **BR-02** Zaległość liczona jest od dnia następnego po dacie terminu (od północy), niezależnie od godziny. (źródło: decyzje Q-02)
-- **BR-03** Zadanie z terminem na dziś nie jest zaległe. (źródło: decyzje Q-02)
-- **BR-04** Ukończone zadanie nie jest oznaczane jako po terminie. (źródło: decyzje Q-03, przyjęta rekomendacja BA/QA – brak odpowiedzi interesariusza)
-- **BR-05** Zadania bez terminu trafiają na koniec przy akcji "Ułóż po terminie". (źródło: decyzje Q-06)
-- **BR-06** Filtr "Dziś" łączy się z filtrem kategorii (iloczyn warunków). (źródło: decyzje Q-05)
-- **BR-07** Ręczne przeciąganie ma pierwszeństwo przed jakimkolwiek automatycznym porządkiem. (źródło: decyzje Q-06)
+- **BR-01** Definicja "zaległe" bez zmian: termin przed dzisiejszym dniem (od północy), nieukończone; zadanie bez terminu nigdy nie jest zaległe. (źródło: przyklad-terminy-zadan-decyzje.md, Q-02)
+- **BR-02** Ręczna kolejność zawsze wygrywa; funkcje z tych notatek jej nie zmieniają ani nie nadpisują. (źródło: decyzje.md "według ręcznej kolejności"; przyklad-terminy-zadan-decyzje.md, Q-06)
+- **BR-03** Aplikacja nie zmienia terminów sama. (źródło: decyzje.md)
+- **BR-04** Pilność wynika z terminu; nie ma osobnej flagi "pilne". (źródło: decyzje.md, "pilność wynika z terminu")
+- **BR-05** Zaległe i dzisiejsze zadania nie są ukrywane przez tryb energii. (źródło: decyzje.md)
+- **BR-06** Nieoznaczone zadania nie znikają w żadnym trybie. (źródło: decyzje.md)
+- **BR-07** Brak automatycznego kasowania zadań. (źródło: decyzje.md)
 
 ## Poza zakresem
-
-- Trwały tryb sortowania po terminie (źródło: decyzje Q-06, "Nie ma trwałego trybu sortowania po terminie").
-- Osobny widok/ekran "Dziś" – to filtr, nie widok (źródło: decyzje Q-05, "nie osobny widok").
-- Backend, konta użytkowników (źródło: kontekst produktu).
+- Zbiorcze przeplanowanie terminów zaległych.
+- Automatyczne wykrywanie gorszego dnia; powiadomienia i przypomnienia.
+- Osobny Inbox (widok/skrzynka).
+- Powiązania między zadaniami (podzadania, zależności).
+- Skróty w tytule ("!", "#kategoria") i osobna flaga "pilne".
+- Zgadywanie trudności po treści, zgadywanie stanu po porze dnia, GPS.
+- Nowe pole miejsca.
+- Uwaga: pozycje typu aplikacja mobilna, rozszerzenie, głosowe dodawanie, statystyki, uczenie maszynowe pochodzą tylko z rekomendacji w grill-questions.md, nie z decyzji; traktowane jako niewymagane, ale do potwierdzenia (Q-09).
 
 ## Otwarte pytania do interesariuszy
-
-- **Q-01** Czy filtr "Dziś" pokazuje ukończone zadania z terminem na dziś, czy tylko nieukończone? Czy podlega przełącznikowi "Pokaż ukończone"? (Notatki i decyzje nie rozstrzygają.)
-- **Q-02** Czy można ustawić termin w przeszłości przy dodawaniu/edycji (zadanie od razu zaległe)? Czy można termin usunąć po ustawieniu? (Notatki nie mówią.)
-- **Q-03** Czy akcja "Ułóż po terminie" (FR-10) ma wejść do tej zmiany, skoro decyzja mówi tylko, że jest "dopuszczalna"? Jak działa przy aktywnym filtrze (kategoria/"Dziś") i jak porządkuje zadania z tą samą datą, z godziną i bez?
-- **Q-04** Czy akcja "Ułóż po terminie" ma być odwracalna (np. "Cofnij" jak przy usuwaniu)? Wymaga potwierdzenia, bo nadpisuje ręczną kolejność.
-- **Q-05** Czy etykieta "Po terminie" i czerwony kolor wymagają konkretnych kontrastów/wyglądu w obu motywach? (Notatki podają tylko "np. na czerwono".)
-- **Q-06** Format wyświetlania terminu dla dat odleglejszych niż tydzień lub z innego roku (decyzja podaje tylko wzór "pt 28.11") oraz dla dat w przeszłości (np. "wczoraj"?).
-- **Q-07** Czy zadanie z datą po terminie, ukończone, nadal pokazuje swój termin (bez wyróżnienia)?
+- **Q-01** Szybki wrzut ma tylko tytuł, a `categoryId` jest w modelu wymagane. Jaka kategoria domyślna dla wrzutu: "Inne" (rekomendacja z grill-questions)? Jeśli tak, to co znaczy "flaga znika, gdy zadanie dostanie kategorię" - zmianę kategorii na inną niż domyślna, czy każdy zapis kategorii (także "Inne")? (decyzje: "Kategoria i termin dodawane później")
+- **Q-02** Czy szybki wrzut to osobne pole/skrót, czy obecny formularz zyskuje tryb "tylko tytuł"? Czy skrót klawiaturowy z dowolnego miejsca (P2.3, nie rozstrzygnięte w decyzjach) jest w zakresie? Czy zadanie z pełnego formularza ma flagę "do przejrzenia" (założono, że nie)?
+- **Q-03** Gdzie dokładnie jest przycisk "OK" (na zadaniu, w widoku filtra "do przejrzenia")? Czy ustawienie samej trudności również zdejmuje flagę (decyzja wymienia tylko kategorię i termin)?
+- **Q-04** Co oznacza "mam siłę" dla zadań oznaczonych "lekkie": są ukryte czy widoczne? Decyzja mówi, że tryb ukrywa tylko jawnie niepasujące, więc założenie: "wypruty" ukrywa "ciężkie", "mam siłę" ukrywa "lekkie" - do potwierdzenia, bo ukrywanie lekkich przy sile może być niepożądane.
+- **Q-05** Czy przełącznik trybu ma stan neutralny (wyłączony, wszystko widoczne) jako domyślny, i czy jego wybór jest zapamiętywany po odświeżeniu strony?
+- **Q-06** Czy podpowiedź "Ogarnij zaległe" respektuje aktywny filtr kategorii / tryb energii, czy zawsze obejmuje wszystkie zadania? Co pokazać, gdy zaległych i dzisiejszych jest 0 (lub mniej niż 3)?
+- **Q-07** Czy "Ogarnij zaległe" to osobny panel/okno, czy zmienia widok głównej listy (i jak się go zamyka)? Czy w podpowiedzi zadania są klikalne/odhaczalne?
+- **Q-08** Jak łączy się filtr "do przejrzenia" z filtrem kategorii, "Dziś" i trybem energii (AND jak pozostałe?) oraz czy zadania ukończone z flagą są liczone w liczniku?
+- **Q-09** Potwierdzenie listy "poza zakresem" w części dotyczącej pozycji z grill-questions, których decyzje nie powtarzają (aplikacja mobilna/rozszerzenie/głos, statystyki, streaki, synchronizacja).

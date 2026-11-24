@@ -1,470 +1,448 @@
-# Specyfikacja User Stories – terminy zadań ("Todo Artur")
+# Specyfikacja: zaległości, szybki wrzut, tryb energii
 
-Źródła: `01-extracted-requirements.md`, `docs/ba/input/przyklad-terminy-zadan-decyzje.md` (decyzje Artura, pierwszeństwo przed notatkami), `03-qa-review-report.md` (edge case'y i kontrakty techniczne wpisane jako AC).
+Wejście: `docs/ba/output/01-extracted-requirements.md` (FR-01..FR-17, NFR, BR) oraz `docs/ba/input/pomysly-zaleglosci-inbox-energia-decyzje.md`.
+Ta wersja zastępuje poprzednią specyfikację o terminach (jest już zaimplementowana; kod w `src/` to stan wyjściowy).
 
-Stan kodu, który ma znaczenie: `Task` ma `id`, `title`, `categoryId`, `completed`, `createdAt`. Brak serwera i logowania; stan w `TaskService` (sygnały), zapis przez `saveJson` do `localStorage` (`todoartur.tasks`). `updateTask` robi `{ ...t, ...changes }`. `reorder` działa na liście widocznych nieukończonych zadań. `loadJson` waliduje dziś tylko `Array.isArray`.
+Rola we wszystkich historiach: **Użytkownik (Artur)** - jedna przeglądarka, bez kont i serwera, dane w `localStorage`.
+Kryterium sukcesu wspólne dla całego zakresu: po gorszym dniu w 2 minuty wiem, od czego zacząć; funkcje nie dokładają klikania (NFR-01, NFR-02).
 
-Poza zakresem: przypomnienia (decyzja Q-04 z dokumentu decyzji, usunięte), trwały tryb sortowania po terminie, osobny widok "Dziś", backend i konta.
+## Stan wyjściowy kodu (ważny dla "Wpływ na kod")
 
-## Kontrakty techniczne (obowiązują we wszystkich historiach)
+- `Task` (`src/app/models/task.model.ts`): `id, title, categoryId, completed, createdAt, dueDate?, dueTime?`.
+- `TaskService` (`src/app/services/task.service.ts`): `addTask(title, categoryId, due)`, `updateTask(id, changes)` (brak klucza = bez zmian, `null` = usuń), `toggleTask`, `reorder`, `sortByDue`; każdy zapis przez `setTasks` -> `localStorage`; błąd zapisu -> sygnał `saveFailed`.
+- Wczytywanie: `loadTasks` -> `normalizeTask` (`src/app/utils/due-date.ts`) buduje zadanie od zera z **znanych pól**. Nieznane pola są gubione, a jeśli wynik różni się od oryginału, oryginał trafia do `todoartur.tasks.backup`. Konsekwencja: każde nowe pole MUSI być dopisane do `normalizeTask`, inaczej zniknie po odświeżeniu strony.
+- Filtry: `matchesFilters` + `TaskFilters` (`src/app/utils/task-filters.ts`) = kategoria AND "Dziś"; używane w `task-list.ts` (`filtered`) i `app.ts` (`onAdded`, toast "poza bieżącym filtrem").
+- `isInTodayFilter`, `isOverdue`, `isToday` w `src/app/utils/due-date.ts`; "dziś" z `TodayService` (zmienia się o północy).
+- Stan filtrów w `app.ts` (sygnały, nie zapisywane): `selectedFilter`, `todayOnly`. Lista: `task-list` (aktywne w `cdkDropList`, ukończone pod "Pokaż ukończone"). Formularz: `task-form` (tytuł, kategoria, termin); edycja inline w `task-item`.
+- Kolejność ręczna = kolejność w tablicy `TaskService.tasks()`.
 
-- **K-01 Model danych.** `Task` dostaje dwa opcjonalne pola: `dueDate?: string` (lokalna data `YYYY-MM-DD`) i `dueTime?: string` (`HH:mm`, 24h). `dueTime` ma sens tylko razem z `dueDate`. Sama data jest poprawnym terminem.
-- **K-02 Kontrakt aktualizacji.** W `updateTask`: `dueDate: null` = usuń termin (razem z `dueTime`); `dueTime: null` = usuń samą godzinę; brak klucza w `changes` = bez zmian; wartość nieprawidłowa = cała zmiana odrzucona. Edycja samego tytułu lub kategorii nigdy nie zmienia terminu.
-- **K-03 Wspólny moduł czasu** (np. `src/app/utils/due-date.ts`), funkcje przyjmują `now: Date` jako parametr: `isValidDueDate`, `isValidDueTime`, `toLocalDateKey(now)`, `isToday(task, now)`, `isOverdue(task, now)`, `formatDue(task, now)`, `normalizeTask(raw)`. Nikt poza tym modułem nie liczy "dziś", "jutro" ani zaległości.
-- **K-04 Definicje.** Porównanie po kluczu dnia lokalnego (`YYYY-MM-DD`, porównanie tekstowe), nie przez różnicę 24 h (odporność na zmianę czasu). `isToday` = `dueDate === dziś`. `isOverdue` = zadanie nieukończone i `dueDate < dziś`. Godzina nie wpływa na żadną z tych funkcji. Strefa: lokalna strefa przeglądarki.
-- **K-05 Odświeżanie doby.** Sygnał `today` jest przeliczany o lokalnej północy (timer do następnej północy oraz ponowne sprawdzenie przy `visibilitychange`), więc wyróżnienia i filtr "Dziś" zmieniają się bez przeładowania strony.
-- **K-06 Normalizacja przy wczytaniu.** Wykonywana raz przy wczytaniu w pamięci; nic nie jest zapisywane zwrotnie do `localStorage`, dopóki użytkownik nie wykona zwykłej zmiany (wtedy zapisuje się cały stan).
-- **K-07 Zakres dat.** Dozwolone daty kalendarzowo istniejące w zakresie 1900-01-01 do 2100-12-31 (założenie techniczne, do wglądu BA).
+## Założenia domyślne (otwarte pytania z 01-extracted-requirements.md)
 
-## Założenia domyślne (otwarte pytania drobne z 01)
+Użytkownik kazał działać bez dalszych pytań. Każde poniższe założenie jest powtórzone przy historii, której dotyczy, i wymaga potwierdzenia przy odbiorze.
 
-| Pytanie | Założenie domyślne | Gdzie użyte |
-|---|---|---|
-| Q-01 | Filtr "Dziś" podlega przełącznikowi "Pokaż ukończone" tak jak cała lista; domyślnie pokazuje tylko nieukończone zadania z terminem dziś lub wcześniejszym. Po włączeniu przełącznika ukończone z terminem dziś lub wcześniejszym pokazują się w części ukończonych. | US-08 |
-| Q-02 | Termin w przeszłości jest dozwolony (zadanie od razu zaległe, bez ostrzeżenia). Termin można usunąć w edycji. | US-01, US-02 |
-| Q-03 | Akcja "Ułóż po terminie" wchodzi do zakresu. Działa na zadaniach widocznych (nieukończone, po aktywnych filtrach), pozostałe zostają na swoich miejscach (tak jak `reorder`). Porządek: data rosnąco; w tej samej dacie najpierw zadania z godziną (rosnąco), potem bez godziny; remisy zachowują dotychczasową kolejność; bez terminu na końcu, też w dotychczasowej kolejności. | US-10 |
-| Q-04 | Akcja jest odwracalna przez toast "Cofnij" (jak przy usuwaniu), bez okna potwierdzenia. | US-10 |
-| Q-05 | Wyróżnienie: czerwona etykieta w stylu istniejących badge'y (jasny: `red-100` tło / `red-800` tekst; ciemny: `red-500/15` tło / `red-300` tekst); kontrast tekstu co najmniej 4.5:1 (WCAG AA) w obu motywach. | US-05 |
-| Q-06 | Format: "dziś", "jutro", "wczoraj"; pozostałe daty "pt 28.11"; data z innego roku niż bieżący ma rok: "pt 28.11.2027". Godzina dopisana po spacji ("jutro 09:30"). Brak osobnego formatu dla dat odleglejszych niż tydzień. | US-07 |
-| Q-07 | Ukończone zadanie nadal pokazuje swój termin, w stonowanym stylu, bez czerwieni i bez etykiety "Po terminie". | US-06, US-07 |
-
-## Epiki
-
-- EP-01 Termin w modelu i formularzach (US-01, US-02, US-03)
-- EP-02 Rozpoznawanie i wyróżnianie zaległości (US-04, US-05, US-06)
-- EP-03 Prezentacja terminu (US-07)
-- EP-04 Filtr "Dziś" (US-08)
-- EP-05 Kolejność zadań (US-09, US-10)
-- EP-06 Trwałość danych (US-11)
-
----
-
-## EP-01 Termin w modelu i formularzach
-
-### US-01 Dodanie zadania z terminem
-*Jako użytkownik, chcę przy dodawaniu zadania opcjonalnie podać datę i godzinę, aby zaplanować je w czasie.*
-Pokrywa: FR-01, FR-02, BR-01. Założenie domyślne (Q-02).
-
-```gherkin
-Scenario: Dodanie zadania z samą datą
-  Given formularz dodawania jest otwarty i wpisano tytuł "Raport"
-  When użytkownik wybierze datę 2026-12-01, zostawi godzinę pustą i zatwierdzi
-  Then zadanie jest dodane z dueDate "2026-12-01" i bez dueTime
-  And termin jest zapisany w localStorage
-
-Scenario: Dodanie zadania z datą i godziną
-  Given wpisano tytuł "Spotkanie"
-  When użytkownik wybierze datę 2026-12-01 i godzinę 14:00 i zatwierdzi
-  Then zadanie ma dueDate "2026-12-01" i dueTime "14:00"
-
-Scenario: Dodanie zadania bez terminu
-  Given wpisano tytuł "Zakupy" i pola terminu są puste
-  When użytkownik zatwierdzi formularz
-  Then zadanie jest dodane bez dueDate i bez dueTime
-
-Scenario: Dodanie zadania z terminem w przeszłości (założenie domyślne Q-02)
-  Given wpisano tytuł "Zaległe sprawozdanie" i wybrano datę wczorajszą
-  When użytkownik zatwierdzi formularz
-  Then zadanie jest dodane bez ostrzeżenia
-  And jest od razu oznaczone jako po terminie
-
-Scenario: Godzina bez daty (ścieżka negatywna)
-  Given wpisano tytuł "Test", data jest pusta, wybrano godzinę 10:00
-  When użytkownik zatwierdzi formularz
-  Then zadanie nie zostaje dodane
-  And użytkownik widzi komunikat, że godzina wymaga daty
-
-Scenario: Nieprawidłowa lub spoza zakresu data (ścieżka negatywna)
-  Given wpisano tytuł "Test"
-  When użytkownik poda nieistniejącą datę (np. 31.02) lub datę spoza 1900-2100
-  Then zadanie nie zostaje dodane
-  And użytkownik widzi komunikat o błędnym terminie
-  And localStorage pozostaje bez zmian
-```
-
-**Wpływ na kod:** `models/task.model.ts` (pola `dueDate?`, `dueTime?`), `services/task.service.ts` (`addTask` przyjmuje opcjonalny termin i waliduje go), formularz dodawania w `task-list`/komponencie dodawania, nowy `utils/due-date.ts`. Zmiana modelu: pola opcjonalne, stare dane w `localStorage` muszą nadal się wczytywać (patrz US-03).
-
-### US-02 Edycja i usuwanie terminu
-*Jako użytkownik, chcę zmienić lub usunąć termin istniejącego zadania, aby plan odpowiadał rzeczywistości.*
-Pokrywa: FR-01, FR-02, BR-01. Założenie domyślne (Q-02).
-
-```gherkin
-Scenario: Zmiana terminu
-  Given zadanie "Raport" ma termin 2026-12-01
-  When użytkownik zmieni datę na 2026-12-05 i godzinę na 09:30 i zatwierdzi
-  Then zadanie ma dueDate "2026-12-05" i dueTime "09:30"
-
-Scenario: Usunięcie terminu (kontrakt K-02: null = usuń)
-  Given zadanie ma dueDate "2026-12-01" i dueTime "14:00"
-  When użytkownik wyczyści datę i zatwierdzi (komponent wysyła dueDate: null)
-  Then zadanie nie ma dueDate ani dueTime
-  And w localStorage nie ma tych kluczy ani wartości null
-
-Scenario: Brak klucza = bez zmian (kontrakt K-02)
-  Given zadanie "Raport" ma termin 2026-12-01
-  When wywołano updateTask z samym { title: "Raport roczny" } albo samą zmianą kategorii
-  Then tytuł lub kategoria jest zmieniona
-  And dueDate nadal wynosi "2026-12-01"
-
-Scenario: Edycja terminu zadania ukończonego
-  Given przełącznik "Pokaż ukończone" jest włączony i ukończone zadanie ma termin w przeszłości
-  When użytkownik zmieni termin na przyszły
-  Then zadanie pozostaje ukończone i termin jest zaktualizowany
-
-Scenario: Nieprawidłowy termin przy edycji (ścieżka negatywna)
-  Given zadanie ma termin 2026-12-01
-  When użytkownik zatwierdzi edycję z nieistniejącą datą
-  Then cała zmiana jest odrzucona, zadanie zachowuje poprzedni tytuł i termin
-  And użytkownik widzi komunikat o błędnym terminie
-```
-
-**Wpływ na kod:** `task.service.ts` (`updateTask`: typ `changes` z `dueDate?: string | null`, `dueTime?: string | null`; obsługa `null` przez usunięcie klucza, nie przez zapis `null`), `task-list.ts` (metoda `edit` wysyła dziś tylko `title` i `categoryId`; po zmianie wysyła `dueDate` wyłącznie, gdy użytkownik edytował termin lub formularz zawsze wysyła pełny stan terminu), szablon edycji. Model: bez dodatkowej zmiany ponad US-01.
-
-### US-03 Zgodność wsteczna i odporne wczytywanie danych
-*Jako użytkownik, chcę, aby moje dotychczasowe zadania działały po aktualizacji, a uszkodzone dane nie psuły aplikacji, aby nie stracić listy.*
-Pokrywa: FR-03, NFR-01.
-
-```gherkin
-Scenario: Stare zadania bez terminu
-  Given w localStorage są zadania zapisane bez pól dueDate i dueTime
-  When aplikacja wczyta dane
-  Then wszystkie zadania są widoczne jak dotąd, bez terminu i bez oznaczenia po terminie
-  And żadne dane nie są zmieniane w localStorage tylko przez samo wczytanie
-
-Scenario Outline: Nieprawidłowa wartość dueDate (normalizacja przy wczytaniu)
-  Given w localStorage zadanie ma dueDate równe <wartosc>
-  When aplikacja wczyta dane
-  Then aplikacja się nie wywala
-  And zadanie jest wyświetlane bez terminu i nie jest po terminie
-  Examples:
-    | wartosc      |
-    | "abc"        |
-    | 12345        |
-    | {}           |
-    | ""           |
-    | "2026-02-31" |
-    | null         |
-
-Scenario: Nieprawidłowa godzina przy poprawnej dacie
-  Given zadanie ma dueDate "2026-12-01" i dueTime "25:99"
-  When aplikacja wczyta dane
-  Then zadanie ma termin 2026-12-01 bez godziny
-
-Scenario: Godzina bez daty
-  Given zadanie ma dueTime "10:00" i brak dueDate
-  When aplikacja wczyta dane
-  Then dueTime jest ignorowane
-
-Scenario: Elementy tablicy nie będące zadaniami (ścieżka negatywna)
-  Given tablica w todoartur.tasks zawiera null, liczbę, obiekt bez id lub title oraz jedno poprawne zadanie
-  When aplikacja wczyta dane
-  Then aplikacja się nie wywala
-  And wyświetlone jest tylko poprawne zadanie
-```
-Normalizacja zgodnie z K-06: tylko w pamięci, bez zapisu zwrotnego do czasu pierwszej zwykłej zmiany.
-
-**Wpływ na kod:** `services/storage.ts` i inicjalizacja `_tasks` w `task.service.ts` (zamiast samego `Array.isArray` wywołanie `normalizeTask` na każdym elemencie), `utils/due-date.ts`, test parametryczny w `task.service.spec.ts`. Model: dodane pola opcjonalne, migracja nie jest potrzebna, ale stare i uszkodzone dane trzeba obsłużyć w wersji z `localStorage`.
-
----
-
-## EP-02 Rozpoznawanie i wyróżnianie zaległości
-
-### US-04 Jednoznaczna definicja "dziś" i "po terminie"
-*Jako użytkownik, chcę, aby zadanie było zaległe dopiero po północy dnia terminu, aby zadanie na dziś nie było fałszywie oznaczone jako spóźnione.*
-Pokrywa: FR-04, BR-02, BR-03, NFR-03.
-
-```gherkin
-Scenario Outline: Granica dnia (dziś = 2026-11-24, zadanie nieukończone)
-  Given zadanie ma dueDate <data> i dueTime <godzina>
-  When aplikacja policzy status
-  Then isToday zwraca <dzis> i isOverdue zwraca <zalegle>
-  Examples:
-    | data       | godzina | dzis  | zalegle |
-    | 2026-11-24 |         | true  | false   |
-    | 2026-11-24 | 00:01   | true  | false   |
-    | 2026-11-24 | 08:00   | true  | false   |
-    | 2026-11-23 | 23:59   | false | true    |
-    | 2026-11-25 |         | false | false   |
-
-Scenario: Godzina nie przyspiesza zaległości
-  Given jest 2026-11-24 15:00 i zadanie ma termin 2026-11-24 08:00
-  When aplikacja wyświetli listę
-  Then zadanie nie jest po terminie
-
-Scenario: Przejście północy przy otwartej aplikacji
-  Given zadanie z terminem na dziś jest widoczne i nie jest po terminie
-  When lokalny zegar przejdzie na następny dzień, bez przeładowania strony
-  Then zadanie jest oznaczone jako po terminie
-
-Scenario: Zadanie bez terminu lub z uszkodzonym terminem (ścieżka negatywna)
-  Given zadanie nie ma dueDate
-  When aplikacja policzy status
-  Then isToday i isOverdue zwracają false
-```
-
-**Wpływ na kod:** nowy `utils/due-date.ts` (`isToday`, `isOverdue` z parametrem `now`, jedno źródło prawdy dla US-05, US-06, US-08), sygnał `today` w `task.service.ts` lub osobnym serwisie z timerem do północy i `visibilitychange`, testy jednostkowe (wczoraj, dziś, jutro, przełom doby, zmiana czasu letni/zimowy). Model danych bez zmian.
-
-### US-05 Wyróżnienie zadania po terminie
-*Jako użytkownik, chcę widzieć zaległe zadania na czerwono z napisem "Po terminie", aby od razu je zauważyć także bez rozróżniania kolorów.*
-Pokrywa: FR-05, NFR-02, NFR-04. Założenie domyślne (Q-05).
-
-```gherkin
-Scenario: Zaległe zadanie jest wyróżnione
-  Given nieukończone zadanie ma termin wczorajszy
-  When użytkownik zobaczy listę
-  Then zadanie ma czerwone wyróżnienie
-  And ma widoczną tekstową etykietę "Po terminie"
-
-Scenario: Czytelność w obu motywach
-  Given istnieje zadanie po terminie
-  When użytkownik przełączy motyw jasny i ciemny
-  Then etykieta i czerwone wyróżnienie są widoczne w obu motywach
-  And kontrast tekstu etykiety wynosi co najmniej 4.5:1
-
-Scenario: Informacja nie opiera się tylko na kolorze
-  Given zadanie jest po terminie
-  When kolor zostanie zignorowany (np. skala szarości)
-  Then etykieta "Po terminie" nadal jest czytelna i dostępna dla czytnika ekranu
-
-Scenario: Zadanie na dziś i bez terminu nie jest wyróżnione (ścieżka negatywna)
-  Given nieukończone zadanie ma termin na dziś, a inne nie ma terminu
-  When użytkownik zobaczy listę
-  Then żadne z nich nie ma etykiety "Po terminie"
-
-Scenario: Cofnięcie usunięcia zadania po terminie
-  Given zadanie po terminie zostało usunięte i widoczny jest toast "Cofnij"
-  When użytkownik kliknie "Cofnij"
-  Then zadanie wraca na dawną pozycję ze swoim terminem i jest znowu wyróżnione
-```
-(Przy bardzo długim tytule na wąskim ekranie etykieta i termin zawijają się w układzie, bez poziomego przewijania.)
-
-**Wpływ na kod:** komponent elementu zadania (`task-item`: etykieta, klasy Tailwind pisane w całości dla trybu jasnego i `dark:`), `task-list` (użycie `isOverdue` z sygnałem `today`). Model bez zmian.
-
-### US-06 Ukończone zadania nie są oznaczane jako po terminie
-*Jako użytkownik, chcę, aby ukończone zadanie nie świeciło na czerwono, aby alarmowały mnie tylko sprawy do zrobienia.*
-Pokrywa: FR-06, BR-04. Założenie domyślne (Q-07).
-
-```gherkin
-Scenario: Ukończenie zaległego zadania
-  Given nieukończone zadanie jest po terminie
-  When użytkownik oznaczy je jako ukończone
-  Then zadanie traci czerwone wyróżnienie i etykietę "Po terminie"
-  And nadal pokazuje swój termin w stonowanym stylu
-
-Scenario: Cofnięcie ukończenia
-  Given ukończone zadanie ma termin w przeszłości
-  When użytkownik odznaczy je jako ukończone
-  Then zadanie jest ponownie wyróżnione jako po terminie
-
-Scenario: isOverdue dla ukończonego (ścieżka negatywna)
-  Given ukończone zadanie ma dueDate sprzed tygodnia
-  When wywołano isOverdue
-  Then wynik to false
-```
-
-**Wpływ na kod:** `utils/due-date.ts` (`isOverdue` zwraca `false` dla `completed`), `task-item`. Model bez zmian.
-
----
-
-## EP-03 Prezentacja terminu
-
-### US-07 Względny format terminu na zadaniu
-*Jako użytkownik, chcę widzieć termin jako "dziś", "jutro" lub "pt 28.11", aby szybko ocenić, kiedy coś trzeba zrobić.*
-Pokrywa: FR-07. Założenie domyślne (Q-06, Q-07).
-
-```gherkin
-Scenario Outline: Format terminu (dziś = wtorek 2026-11-24)
-  Given zadanie ma dueDate <data> i dueTime <godzina>
-  When użytkownik zobaczy zadanie
-  Then termin jest wyświetlony jako <tekst>
-  Examples:
-    | data       | godzina | tekst            |
-    | 2026-11-24 |         | dziś             |
-    | 2026-11-24 | 14:00   | dziś 14:00       |
-    | 2026-11-25 |         | jutro            |
-    | 2026-11-23 |         | wczoraj          |
-    | 2026-11-28 |         | sb 28.11         |
-    | 2026-11-28 | 09:30   | sb 28.11 09:30   |
-    | 2027-01-15 |         | pt 15.01.2027    |
-
-Scenario: Ukończone zadanie nadal pokazuje termin
-  Given ukończone zadanie ma termin
-  When użytkownik pokaże ukończone
-  Then termin jest widoczny w stonowanym stylu
-
-Scenario: Zadanie bez terminu (ścieżka negatywna)
-  Given zadanie nie ma terminu
-  When użytkownik zobaczy zadanie
-  Then nie ma żadnego tekstu terminu ani pustego znacznika
-
-Scenario: Zmiana dnia odświeża tekst
-  Given zadanie z terminem "jutro" jest widoczne
-  When lokalny zegar przejdzie na następny dzień
-  Then tekst zmienia się na "dziś" bez przeładowania
-```
-
-**Wpływ na kod:** `utils/due-date.ts` (`formatDue`, skróty dni tygodnia po polsku: pn, wt, śr, cz, pt, sb, nd), `task-item`. Model bez zmian.
-
----
-
-## EP-04 Filtr "Dziś"
-
-### US-08 Filtr "Dziś" obok filtra kategorii
-*Jako użytkownik, chcę włączyć filtr "Dziś", aby widzieć tylko zadania na dziś i zaległe, w wybranej kategorii.*
-Pokrywa: FR-08, BR-06. Założenie domyślne (Q-01).
-
-```gherkin
-Scenario: Filtr pokazuje dziś i zaległe
-  Given nieukończone zadania mają terminy: wczoraj, dziś, jutro oraz brak terminu
-  When użytkownik włączy filtr "Dziś"
-  Then widoczne są zadania z terminem wczoraj i dziś
-  And zadania z terminem jutro i bez terminu są ukryte
-
-Scenario: Łączenie z filtrem kategorii
-  Given wybrano kategorię "Praca" a zadania na dziś są w "Praca" i "Dom"
-  When użytkownik włączy filtr "Dziś"
-  Then widoczne są tylko zadania na dziś i zaległe z kategorii "Praca"
-
-Scenario: Przełącznik "Pokaż ukończone" (założenie domyślne Q-01)
-  Given filtr "Dziś" jest włączony i istnieje ukończone zadanie z terminem dziś
-  When "Pokaż ukończone" jest wyłączone
-  Then ukończone zadanie nie jest widoczne
-  And po włączeniu przełącznika pojawia się w części ukończonych
-
-Scenario: Pusty wynik (ścieżka negatywna)
-  Given w wybranej kategorii "Dom" nie ma zadań na dziś ani zaległych
-  When włączono filtr "Dziś"
-  Then wyświetlany jest komunikat o braku zadań na dziś w tej kategorii
-
-Scenario: Wyłączenie filtra
-  Given filtr "Dziś" jest włączony
-  When użytkownik go wyłączy
-  Then lista wraca do stanu zgodnego z samym filtrem kategorii
-```
-Filtr to dodatkowy przełącznik w tym samym ekranie, nie osobny widok.
-
-**Wpływ na kod:** `app.ts` (stan filtra "Dziś" obok filtra kategorii przekazywanego przez `input()`), `task-list.ts` (wspólny `computed` widocznych zadań używany także przez `reorder`/`drop`), szablon pasków filtrów. Model bez zmian; stan filtra nie jest zapisywany (jak `showCompleted`).
-
----
-
-## EP-05 Kolejność zadań
-
-### US-09 Ręczna kolejność zawsze nadrzędna
-*Jako użytkownik, chcę, aby termin nigdy sam nie zmieniał kolejności, którą ułożyłem przeciąganiem, aby moja lista była przewidywalna.*
-Pokrywa: FR-09, BR-07.
-
-```gherkin
-Scenario: Ustawienie terminu nie zmienia kolejności
-  Given zadania A, B, C są ułożone ręcznie
-  When użytkownik ustawi lub zmieni termin zadania B
-  Then kolejność nadal wynosi A, B, C
-
-Scenario: Nowe zadanie z terminem ląduje na górze
-  Given istnieją zadania z terminami w różnych datach
-  When użytkownik doda zadanie z terminem wcześniejszym niż wszystkie istniejące
-  Then nowe zadanie jest na górze listy, jak każde nowe zadanie
-
-Scenario: Przeciąganie działa jak dotąd
-  Given lista zawiera zadania z terminami i bez
-  When użytkownik przeciągnie zadanie na inną pozycję
-  Then nowa kolejność jest zapisana i zachowana po odświeżeniu
-
-Scenario: Brak trwałego trybu sortowania (ścieżka negatywna)
-  Given aplikacja jest w stanie domyślnym
-  When użytkownik przejrzy interfejs
-  Then nie ma przełącznika trwałego sortowania po terminie
-```
-
-**Wpływ na kod:** brak nowej logiki; potwierdzić testami, że `addTask`, `updateTask`, `reorder` w `task.service.ts` nie sortują po terminie. Model bez zmian.
-
-### US-10 Jednorazowa akcja "Ułóż po terminie"
-*Jako użytkownik, chcę jednym kliknięciem ułożyć zadania wg terminu, a potem dalej przeciągać je ręcznie, aby szybko uporządkować listę.*
-Pokrywa: FR-10, BR-05. Założenia domyślne (Q-03, Q-04).
-
-```gherkin
-Scenario: Ułożenie wg terminu
-  Given nieukończone zadania: A (bez terminu), B (2026-12-05), C (2026-12-01 14:00), D (2026-12-01), E (bez terminu)
-  When użytkownik kliknie "Ułóż po terminie"
-  Then kolejność wynosi C, D, B, A, E
-  And nowa kolejność jest zapisana w localStorage
-
-Scenario: Remisy zachowują dotychczasową kolejność
-  Given trzy zadania mają ten sam termin w kolejności X, Y, Z
-  When użytkownik kliknie "Ułóż po terminie"
-  Then pozostają w kolejności X, Y, Z
-
-Scenario: Akcja przy aktywnym filtrze (Q-03)
-  Given aktywny jest filtr kategorii "Praca" lub filtr "Dziś"
-  When użytkownik kliknie "Ułóż po terminie"
-  Then uporządkowane są tylko widoczne zadania, a niewidoczne zostają na swoich pozycjach
-
-Scenario: Cofnięcie akcji (Q-04)
-  Given akcja została wykonana i widoczny jest toast "Cofnij"
-  When użytkownik kliknie "Cofnij"
-  Then przywracana jest poprzednia ręczna kolejność
-
-Scenario: Dalsze przeciąganie po akcji
-  Given akcja została wykonana
-  When użytkownik przeciągnie zadanie
-  Then kolejność zmienia się ręcznie i nie jest automatycznie przywracana wg terminu
-
-Scenario: Brak zadań do ułożenia (ścieżka negatywna)
-  Given widoczna lista ma 0 lub 1 zadanie albo kolejność już zgadza się z terminami
-  When użytkownik kliknie "Ułóż po terminie"
-  Then nic się nie zmienia, nie pojawia się toast "Cofnij" i nic nie jest zapisywane
-```
-
-**Wpływ na kod:** `task.service.ts` (nowa metoda np. `sortByDue(visibleIds)` używająca tej samej techniki co `reorder`, zwracająca poprzednią kolejność dla "Cofnij"), `task-list.ts` i szablon (przycisk, toast), `utils/due-date.ts` (komparator). Model bez zmian.
-
----
-
-## EP-06 Trwałość danych
-
-### US-11 Informacja o niezapisaniu zmian
-*Jako użytkownik, chcę wiedzieć, gdy zadanie z terminem nie zapisało się trwale, aby nie stracić danych po odświeżeniu.*
-Pokrywa: NFR-01.
-
-```gherkin
-Scenario: Przepełnione localStorage
-  Given localStorage odrzuca zapis (przekroczony limit)
-  When użytkownik doda zadanie "Oddać raport" z terminem
-  Then aplikacja się nie wywala
-  And użytkownik widzi komunikat, że zmiana nie została zapisana trwale
-
-Scenario: Poprawny zapis (ścieżka negatywna dla komunikatu)
-  Given localStorage działa
-  When użytkownik doda lub zmieni zadanie
-  Then nie pojawia się komunikat o błędzie zapisu
-```
-Ograniczenie świadomie nierozwiązywane: zmiany w wielu kartach jednocześnie (ostatni zapis wygrywa, brak nasłuchu `storage`); do udokumentowania w README.
-
-**Wpływ na kod:** `services/storage.ts` (`saveJson` zwraca wynik zamiast połykać błąd), `task.service.ts` (sygnał błędu zapisu), komponent z toastami. Model bez zmian.
-
----
-
-## Tabela pokrycia
-
-| Wymaganie | Historie |
+| Q | Założenie domyślne |
 |---|---|
-| FR-01 | US-01, US-02 |
-| FR-02 | US-01 (dodawanie), US-02 (edycja) |
-| FR-03 | US-03 |
-| FR-04 | US-04 |
-| FR-05 | US-05 |
-| FR-06 | US-06 |
-| FR-07 | US-07 |
-| FR-08 | US-08 |
-| FR-09 | US-09 |
-| FR-10 | US-10 |
-| NFR-01 | US-03, US-11 |
-| NFR-02 | US-05 |
-| NFR-03 | US-04 |
-| NFR-04 | US-05 |
-| BR-01 | US-01, US-02 |
-| BR-02, BR-03 | US-04 |
-| BR-04 | US-06 |
-| BR-05 | US-10 |
-| BR-06 | US-08 |
-| BR-07 | US-09 |
+| Q-01 | Wrzut dostaje kategorię "Inne" (id `inne`); jeśli takiej kategorii już nie ma - pierwszą istniejącą. "Dostanie kategorię" = zapis edycji, po którym `categoryId` jest INNE niż było. Zapis tej samej kategorii flagi nie zdejmuje (od tego jest "OK"). "Dostanie termin" = po zapisie zadanie ma `dueDate`. |
+| Q-02 | Szybki wrzut to osobne, jednowierszowe pole nad obecnym formularzem. Bez skrótu klawiaturowego (poza zakresem v1). Zadanie z pełnego formularza NIE dostaje flagi. |
+| Q-03 | Przycisk "OK" jest na samym zadaniu na liście (widoczny tylko przy zadaniach z flagą). Ustawienie samej trudności flagi NIE zdejmuje. |
+| Q-04 | Tryb symetryczny: "Jestem wypruty" ukrywa zadania oznaczone "ciężkie"; "Mam siłę" ukrywa oznaczone "lekkie". Nieoznaczone, zaległe i dzisiejsze są zawsze widoczne. Jest trzeci stan "Wyłączony" (domyślny). |
+| Q-05 | Domyślnie "Wyłączony". Wybór trybu NIE jest zapamiętywany po odświeżeniu (tak jak "Dziś" i "Pokaż ukończone"). |
+| Q-06 | "Ogarnij zaległe" respektuje filtr kategorii, ignoruje tryb energii (zaległe nie mogą znikać) oraz filtry "Dziś" i "do przejrzenia". Brak zadań = komunikat; mniej niż 3 = pokazujemy tyle, ile jest, bez "+X więcej". |
+| Q-07 | Podpowiedź to panel nad listą (lista pozostaje widoczna pod spodem). Otwiera i zamyka go ten sam przycisk. Przy zadaniu w panelu jest pole wyboru "zrobione" (używa `toggleTask`). Stan panelu nie jest zapisywany. |
+| Q-08 | Filtr "do przejrzenia" łączy się przez AND z kategorią, "Dziś" i trybem energii. Licznik liczy tylko nieukończone zadania z flagą, we wszystkich kategoriach (niezależnie od filtrów). Ukończenie zadania nie zmienia flagi. |
+| Q-09 | Pozycje spoza decyzji (aplikacja mobilna, rozszerzenie, głos, statystyki, streaki, synchronizacja) traktujemy jako poza zakresem. |
 
-Podsumowanie: 6 epików, 11 historii; wszystkie FR pokryte. Żadna historia nie jest zablokowana: wszystkie otwarte pytania Q-01 do Q-07 z pliku 01 mają założenia domyślne w sekcji powyżej.
+---
+
+## EP-01 Model danych i zgodność wsteczna
+
+### US-01 Nowe pola w zadaniu bez utraty starych danych
+*Jako użytkownik, chcę, żeby po aktualizacji aplikacji moje dotychczasowe zadania działały bez zmian, aby nie stracić żadnych danych.*
+Pokrywa: FR-16, NFR-04, NFR-05
+
+Opis: `Task` dostaje dwa opcjonalne pola: `needsReview?: true` (flaga "do przejrzenia"; klucz pomijany, gdy flagi nie ma) i `difficulty?: 'light' | 'heavy'` (brak klucza = nieoznaczone). Konwencja zgodna z `dueDate`/`dueTime`: bez kluczy z `null`/`false` w `localStorage`.
+
+Kryteria akceptacji:
+```gherkin
+Scenario: Stare zadania bez nowych pól
+  Given w localStorage jest zapisane zadanie bez pól needsReview i difficulty
+  When aplikacja się uruchamia
+  Then zadanie jest widoczne, nie ma flagi "do przejrzenia" i jest nieoznaczone
+  And w localStorage nie powstaje kopia todoartur.tasks.backup
+
+Scenario: Nowe pola przetrwają odświeżenie
+  Given zadanie ma needsReview = true i difficulty = "heavy"
+  When odświeżam stronę
+  Then zadanie nadal ma flagę "do przejrzenia" i oznaczenie "ciężkie"
+
+Scenario: Negatywny - nieprawidłowa wartość trudności
+  Given w localStorage zadanie ma difficulty = "średnie" albo needsReview = "tak"
+  When aplikacja się uruchamia
+  Then zadanie jest wczytane jako nieoznaczone i bez flagi
+  And oryginalne dane są zachowane w todoartur.tasks.backup
+```
+
+Wpływ na kod: ZMIANA MODELU DANYCH. `task.model.ts` (pola + typ `Difficulty`), `utils/due-date.ts` -> `normalizeTask` (przepuszcza tylko `needsReview === true` i `difficulty` równe `'light'`/`'heavy'`; inaczej pole pomijane), `task.service.ts` (`loadTasks` bez zmian logicznych, korzysta z mechanizmu backupu), testy w `due-date.spec.ts` i `task.service.spec.ts`. Stare dane w `localStorage` obsługuje opcjonalność pól - bez migracji.
+
+---
+
+## EP-02 Szybki wrzut i przegląd
+
+### US-02 Szybki wrzut samego tytułu
+*Jako użytkownik, chcę wpisać sam tytuł i nacisnąć Enter, aby wyrzucić zadanie z głowy bez wybierania kategorii i terminu.*
+Pokrywa: FR-06, FR-07, FR-17, NFR-01
+Założenia domyślne (Q-01), (Q-02)
+
+Opis: osobne pole "Szybki wrzut" nad obecnym formularzem. Enter dodaje zadanie na górę głównej listy z `needsReview = true` i kategorią "Inne" (albo pierwszą istniejącą). Po dodaniu pole się czyści i zachowuje fokus (kolejny wrzut bez klikania). Pełny formularz działa jak dotąd i nie ustawia flagi.
+
+Kryteria akceptacji:
+```gherkin
+Scenario: Wrzut jednym Enterem
+  Given jestem w polu "Szybki wrzut" i wpisałem "Zadzwonić do lekarza"
+  When naciskam Enter
+  Then na górze głównej listy pojawia się zadanie "Zadzwonić do lekarza"
+  And ma kategorię "Inne", brak terminu i flagę "do przejrzenia"
+  And pole jest puste i nadal ma fokus
+
+Scenario: Brak kategorii "Inne"
+  Given kategoria "Inne" została wcześniej usunięta
+  When wrzucam zadanie "Kupić klej"
+  Then zadanie dostaje pierwszą istniejącą kategorię i flagę "do przejrzenia"
+
+Scenario: Negatywny - pusty lub same spacje tytuł
+  Given pole "Szybki wrzut" jest puste albo zawiera same spacje
+  When naciskam Enter
+  Then żadne zadanie nie powstaje i nie pojawia się błąd ani toast
+
+Scenario: Pełny formularz bez flagi
+  Given wypełniam tytuł, kategorię i termin w obecnym formularzu
+  When zatwierdzam dodanie
+  Then zadanie nie ma flagi "do przejrzenia"
+
+Scenario: Wrzut poza bieżącym filtrem
+  Given aktywny jest filtr kategorii "Praca"
+  When wrzucam zadanie (trafia do "Inne")
+  Then zadanie jest zapisane, a toast informuje, że jest poza bieżącym filtrem
+```
+
+Wpływ na kod: ZMIANA MODELU (pole `needsReview`, zob. US-01; stare dane obsłużone przez opcjonalność). Nowy komponent `components/quick-add/` (lub pole w `app.html`), `task.service.ts` -> nowa metoda `addQuickTask(title)` zwracająca `TaskResult` (błąd `empty-title` jak w `addTask`), `app.ts`/`app.html` (podpięcie `(added)` do istniejącego `onAdded`, więc toast filtra działa bez zmian). `task-form` bez zmian zakresu (poza US-06).
+
+### US-03 Licznik i filtr "do przejrzenia"
+*Jako użytkownik, chcę widzieć, ile zadań czeka na przejrzenie, i móc je wyfiltrować, aby wrzucone rzeczy nie zamieniły się w śmietnik.*
+Pokrywa: FR-08, FR-10
+Założenie domyślne (Q-08)
+
+Opis: w pasku filtrów przycisk "Do przejrzenia: X" (przełącznik jak "Dziś"). X = liczba nieukończonych zadań z flagą, we wszystkich kategoriach, niezależnie od aktywnych filtrów. Przycisk widoczny, gdy X > 0 lub filtr jest włączony (żeby dało się go wyłączyć). Filtr łączy się przez AND z kategorią, "Dziś" i trybem energii. Nic nie jest kasowane automatycznie.
+
+Kryteria akceptacji:
+```gherkin
+Scenario: Licznik
+  Given mam 3 nieukończone zadania z flagą i 1 ukończone z flagą
+  Then przycisk pokazuje "Do przejrzenia: 3"
+
+Scenario: Filtr łączy się z kategorią
+  Given 2 zadania z flagą są w "Inne", a 1 w "Dom"
+  When włączam "Do przejrzenia" i kategorię "Dom"
+  Then lista pokazuje tylko to 1 zadanie z flagą z kategorii "Dom"
+
+Scenario: Negatywny - brak zadań do przejrzenia
+  Given żadne zadanie nie ma flagi
+  Then przycisk "Do przejrzenia" nie jest widoczny
+  And przy włączonym filtrze, gdy ostatnia flaga zniknie, lista pokazuje komunikat "Brak zadań do przejrzenia", a przycisk pozostaje, by wyłączyć filtr
+
+Scenario: Brak automatycznego kasowania
+  Given zadanie z flagą istnieje od 30 dni
+  When otwieram aplikację
+  Then zadanie nadal jest na liście z flagą
+```
+
+Wpływ na kod: bez zmiany modelu (korzysta z US-01). `utils/task-filters.ts` (`TaskFilters.reviewOnly`, warunek w `matchesFilters`), `task-list.ts` (nowy `input`, komunikat pustej listy), `app.ts`/`app.html` (sygnał `reviewOnly`, przycisk, licznik `computed` w `TaskService`, np. `reviewCount`), `onAdded` przekazuje nowy filtr.
+
+### US-04 Flaga znika sama po uzupełnieniu zadania
+*Jako użytkownik, chcę, żeby zadanie przestało być "do przejrzenia", gdy je uzupełnię, aby nie klikać dodatkowo.*
+Pokrywa: FR-09
+Założenie domyślne (Q-01), (Q-03)
+
+Kryteria akceptacji:
+```gherkin
+Scenario: Zmiana kategorii zdejmuje flagę
+  Given zadanie z flagą ma kategorię "Inne"
+  When w edycji zmieniam kategorię na "Dom" i zapisuję
+  Then zadanie nie ma już flagi, a licznik maleje o 1
+
+Scenario: Nadanie terminu zdejmuje flagę
+  Given zadanie z flagą nie ma terminu
+  When w edycji ustawiam datę i zapisuję
+  Then zadanie nie ma już flagi
+
+Scenario: Negatywny - edycja, która niczego nie uzupełnia
+  Given zadanie z flagą ma kategorię "Inne" i brak terminu
+  When w edycji zmieniam tylko tytuł albo tylko trudność, albo zapisuję "Inne" ponownie
+  Then flaga zostaje
+
+Scenario: Negatywny - odrzucona edycja
+  Given zadanie z flagą
+  When zapis edycji kończy się błędem (np. nieprawidłowa data)
+  Then flaga zostaje, a zadanie nie zmienia się
+```
+
+Wpływ na kod: bez zmiany modelu. `task.service.ts` -> `updateTask`: po walidacji, jeśli `current.needsReview` i (`categoryId` zmieniona względem `current` lub wynik ma `dueDate`), budujemy zadanie bez klucza `needsReview` (ten sam wzorzec destrukturyzacji co dla terminu). Testy w `task.service.spec.ts`.
+
+### US-05 Przycisk "OK" przy zadaniu
+*Jako użytkownik, chcę jednym kliknięciem zatwierdzić zadanie "do przejrzenia" bez zmian, aby zadanie zostało w "Inne" i zniknęło z przeglądu.*
+Pokrywa: FR-09
+Założenie domyślne (Q-03)
+
+Kryteria akceptacji:
+```gherkin
+Scenario: OK zdejmuje flagę
+  Given zadanie ma flagę "do przejrzenia"
+  When klikam "OK" przy zadaniu
+  Then flaga znika, kategoria, termin i kolejność zadania się nie zmieniają
+  And licznik maleje o 1
+
+Scenario: Przycisk tylko przy zadaniach z flagą
+  Given zadanie nie ma flagi
+  Then przy zadaniu nie ma przycisku "OK"
+
+Scenario: Negatywny - OK w filtrze "do przejrzenia"
+  Given filtr "Do przejrzenia" jest włączony i klikam "OK" przy ostatnim zadaniu
+  Then zadanie znika z widoku filtra (nadal istnieje na głównej liście po wyłączeniu filtra)
+  And pokazuje się komunikat pustej listy zamiast błędu
+```
+
+Wpływ na kod: bez zmiany modelu. `task.service.ts` (`dismissReview(id)`), `task-item.ts/.html` (przycisk + `output`), `task-list.html` (podpięcie). Bez toasta i bez "Cofnij" (zakres v1).
+
+---
+
+## EP-03 Tryb energii
+
+### US-06 Oznaczanie trudności zadania
+*Jako użytkownik, chcę opcjonalnie oznaczyć zadanie jako "lekkie" lub "ciężkie", aby w gorszy dzień tryb energii mógł je ukryć.*
+Pokrywa: FR-11
+Założenie domyślne (Q-03: samo ustawienie trudności nie zdejmuje flagi)
+
+Opis: lista rozwijana "Trudność: brak / lekkie / ciężkie" w `task-form` i w edycji w `task-item`. Domyślnie "brak". Na liście przy oznaczonym zadaniu widać małą etykietę.
+
+Kryteria akceptacji:
+```gherkin
+Scenario: Dodanie z trudnością
+  Given w formularzu wybieram "ciężkie"
+  When dodaję zadanie
+  Then zadanie ma difficulty = "heavy" i etykietę "ciężkie"
+
+Scenario: Domyślnie nieoznaczone
+  When dodaję zadanie, nie dotykając pola trudności
+  Then zadanie nie ma klucza difficulty
+
+Scenario: Zdjęcie oznaczenia w edycji
+  Given zadanie jest "lekkie"
+  When w edycji wybieram "brak" i zapisuję
+  Then zadanie jest nieoznaczone, a w localStorage nie ma klucza difficulty
+
+Scenario: Negatywny - nieprawidłowa wartość z kodu
+  When updateTask dostaje difficulty spoza "light"/"heavy"/null
+  Then zmiana jest odrzucona, a zadanie bez zmian
+```
+
+Wpływ na kod: ZMIANA MODELU (zob. US-01). `task.model.ts` (`Difficulty`), `task.service.ts` (`addTask` dostaje opcjonalny parametr trudności; `TaskChanges.difficulty?: Difficulty | null`, nowy kod błędu `invalid-difficulty` + komunikat w `TASK_ERROR_MESSAGES`), `task-form.ts/.html`, `task-item.ts/.html`.
+
+### US-07 Przełącznik "mam siłę / jestem wypruty"
+*Jako użytkownik, chcę jednym kliknięciem ukryć zadania nieodpowiednie do mojej energii, aby widzieć tylko to, co mogę teraz zrobić.*
+Pokrywa: FR-12, FR-14
+Założenia domyślne (Q-04), (Q-05)
+
+Opis: trójstanowy przełącznik w pasku filtrów: "Bez trybu" (domyślny) / "Mam siłę" / "Jestem wypruty". "Jestem wypruty" ukrywa zadania z `difficulty = 'heavy'`; "Mam siłę" ukrywa `'light'`. Nieoznaczone nigdy nie są ukrywane. Tryb działa jak kolejny filtr (AND z kategorią, "Dziś", "do przejrzenia"), dotyczy listy aktywnych i ukończonych. Stan tylko w pamięci.
+
+Kryteria akceptacji:
+```gherkin
+Scenario: Jestem wypruty
+  Given mam zadania: A "ciężkie", B "lekkie", C nieoznaczone (wszystkie bez terminu)
+  When wybieram "Jestem wypruty"
+  Then widzę B i C, a A jest ukryte
+
+Scenario: Mam siłę
+  Given jak wyżej
+  When wybieram "Mam siłę"
+  Then widzę A i C, a B jest ukryte
+
+Scenario: Domyślnie wyłączony i niezapamiętywany
+  When otwieram aplikację albo odświeżam stronę
+  Then wybrany jest "Bez trybu" i widzę wszystkie zadania
+
+Scenario: Negatywny - tryb ukrywa wszystko
+  Given wszystkie zadania są "ciężkie" bez terminu i wybieram "Jestem wypruty"
+  Then lista pokazuje komunikat "Brak zadań pasujących do filtrów" (a nie "Dodaj pierwsze zadanie powyżej")
+
+Scenario: Zadanie dodane poza trybem
+  Given tryb "Jestem wypruty"
+  When dodaję "ciężkie" zadanie bez terminu
+  Then zadanie jest zapisane, a toast informuje, że jest poza bieżącym filtrem
+```
+
+Wpływ na kod: bez zmiany modelu. `utils/task-filters.ts` (`TaskFilters.energy: 'off' | 'rested' | 'tired'`, reguła w `matchesFilters`), `app.ts/.html` (sygnał + przełącznik), `task-list.ts/.html` (nowy `input`, komunikat pustej listy), `onAdded` przekazuje filtr.
+
+### US-08 Zaległe i dzisiejsze zawsze widoczne
+*Jako użytkownik, chcę, żeby tryb energii nigdy nie ukrywał zadań zaległych ani na dziś, aby zmęczenie nie zamiotło ich pod dywan.*
+Pokrywa: FR-13
+Reguły: BR-01, BR-05
+
+Opis: wyjątek od US-07 stosuje ten sam warunek co filtr "Dziś" (`isInTodayFilter`: nieukończone z terminem dziś lub wcześniej; ukończone tylko z terminem dokładnie dziś). Nie dodajemy nowej definicji zaległości.
+
+Kryteria akceptacji:
+```gherkin
+Scenario: Zaległe ciężkie widoczne
+  Given zadanie "ciężkie" ma termin wczoraj i jest nieukończone
+  When wybieram "Jestem wypruty"
+  Then zadanie nadal jest na liście z etykietą "Po terminie"
+
+Scenario: Dzisiejsze lekkie widoczne
+  Given zadanie "lekkie" ma termin dziś
+  When wybieram "Mam siłę"
+  Then zadanie jest widoczne
+
+Scenario: Negatywny - przyszły termin nie chroni
+  Given zadanie "ciężkie" ma termin jutro
+  When wybieram "Jestem wypruty"
+  Then zadanie jest ukryte
+
+Scenario: Północ
+  Given tryb "Jestem wypruty" i "ciężkie" zadanie z terminem jutro jest ukryte
+  When mija północ
+  Then zadanie staje się "dzisiejsze" i pojawia się na liście bez odświeżania
+```
+
+Wpływ na kod: bez zmiany modelu. `utils/task-filters.ts` (wywołanie `isInTodayFilter` w regule trybu; "dziś" dalej z `TodayService`), testy w nowym `task-filters.spec.ts`.
+
+### US-09 Miejsce jako istniejący filtr kategorii
+*Jako użytkownik, chcę łączyć tryb energii z filtrem kategorii (Dom, Praca, własne), aby uwzględnić miejsce bez nowego pola.*
+Pokrywa: FR-15
+
+Kryteria akceptacji:
+```gherkin
+Scenario: Tryb + kategoria
+  Given wybrałem kategorię "Dom" i tryb "Jestem wypruty"
+  Then widzę tylko zadania z "Dom", które nie są "ciężkie" (poza zaległymi i dzisiejszymi)
+
+Scenario: Negatywny - brak nowego pola miejsca
+  When otwieram formularz i edycję zadania
+  Then nie ma pola "miejsce" ani "kontekst"; model Task nie zawiera takiego pola
+```
+
+Wpływ na kod: brak nowych zmian ponad US-07; weryfikacja testem `matchesFilters` (kategoria AND tryb). Bez zmiany modelu.
+
+---
+
+## EP-04 Ogarnij zaległe
+
+### US-10 Przycisk "Ogarnij zaległe" i panel podpowiedzi
+*Jako użytkownik, chcę po gorszym dniu kliknąć "Ogarnij zaległe" i dostać krótką listę, aby nie przytłaczała mnie cała lista zaległości.*
+Pokrywa: FR-01, FR-04
+Założenia domyślne (Q-06), (Q-07)
+
+Opis: przycisk w pasku filtrów (zawsze widoczny; `aria-expanded`). Klik otwiera panel nad listą, ponowny klik zamyka. Aplikacja sama niczego nie otwiera, nie wykrywa gorszego dnia, nie wysyła powiadomień. Panel jest tylko widokiem (pochodną), niczego nie zapisuje ani nie zmienia terminów i kolejności.
+
+Kryteria akceptacji:
+```gherkin
+Scenario: Tylko na żądanie
+  Given mam zaległe zadania
+  When otwieram aplikację po kilku dniach przerwy
+  Then panel jest zamknięty i nie ma żadnego powiadomienia
+
+Scenario: Otwarcie i zamknięcie
+  When klikam "Ogarnij zaległe"
+  Then nad listą pojawia się panel, a lista główna pozostaje widoczna pod nim
+  When klikam "Ogarnij zaległe" ponownie
+  Then panel znika
+
+Scenario: Dane bez zmian
+  Given mam zadania z terminami i ręczną kolejnością
+  When otwieram i zamykam panel
+  Then żaden termin, flaga, trudność ani kolejność zadań się nie zmieniły
+  And w localStorage nie było zapisu
+
+Scenario: Negatywny - brak zaległych i dzisiejszych
+  Given żadne nieukończone zadanie nie jest zaległe ani na dziś
+  When klikam "Ogarnij zaległe"
+  Then panel pokazuje "Brak zaległych i dzisiejszych zadań" (bez błędu)
+```
+
+Wpływ na kod: bez zmiany modelu. Nowy komponent `components/catch-up/` (panel) lub blok w `task-list`; `app.ts/.html` (sygnał otwarcia, przycisk). Czysta funkcja wyboru w `utils/` (zob. US-11).
+
+### US-11 Trzy zadania według ręcznej kolejności
+*Jako użytkownik, chcę zobaczyć 3 zadania do zrobienia w mojej kolejności, aby wiedzieć, od czego zacząć.*
+Pokrywa: FR-02, FR-05
+Reguły: BR-01, BR-02, BR-03, BR-04
+Założenia domyślne (Q-06), (Q-07)
+
+Opis: kandydaci = nieukończone zadania z terminem dziś lub wcześniej (definicje jak `isOverdue`/`isToday`), po filtrze kategorii; kolejność = kolejność w `TaskService.tasks()` (ręczna). Pierwsze 3 w panelu. Bez punktacji, bez sortowania po wieku czy terminie. Tryb energii, "Dziś" i "do przejrzenia" ignorowane. Przy zadaniu pole "zrobione": po zaznaczeniu zadanie wypada z panelu, a na jego miejsce wchodzi kolejne.
+
+Kryteria akceptacji:
+```gherkin
+Scenario: Wybór według ręcznej kolejności
+  Given lista w kolejności: A (zaległe 10 dni), B (dziś), C (zaległe wczoraj), D (zaległe), E (jutro)
+  When otwieram panel
+  Then widzę A, B, C w tej kolejności, a E nie jest uwzględnione
+
+Scenario: Zaznaczenie "zrobione"
+  Given panel pokazuje A, B, C, a D czeka w "+X więcej"
+  When zaznaczam "zrobione" przy A
+  Then A znika z panelu, a panel pokazuje B, C, D
+
+Scenario: Filtr kategorii, ale nie tryb energii
+  Given aktywna kategoria "Dom" i tryb "Jestem wypruty"
+  And w "Dom" zaległe "ciężkie" zadanie F, a w "Praca" zaległe G
+  When otwieram panel
+  Then widzę F, a G nie
+
+Scenario: Negatywny - zadania, które nie kwalifikują się
+  Given zadanie bez terminu, zadanie z terminem jutro i ukończone zaległe
+  When otwieram panel
+  Then żadne z nich nie jest w panelu
+
+Scenario: Mniej niż 3
+  Given jest tylko 1 kwalifikujące się zadanie
+  Then panel pokazuje to 1 zadanie i nie pokazuje "+X więcej"
+```
+
+Wpływ na kod: bez zmiany modelu. Nowa czysta funkcja np. `utils/catch-up.ts` -> `pickCatchUp(tasks, categoryId, now): { top: Task[]; rest: Task[] }` (testowalna z podstawionym `now`), `computed` w komponencie panelu, użycie `isToday`/`isOverdue` z `utils/due-date.ts` i `TodayService`, `toggleTask`. Testy `catch-up.spec.ts`.
+
+### US-12 Rozwijane "+X więcej"
+*Jako użytkownik, chcę zajrzeć do pozostałych zaległych i dzisiejszych zadań, aby mieć pewność, że żadne nie zniknęło.*
+Pokrywa: FR-03, FR-04
+Założenie domyślne (Q-07)
+
+Kryteria akceptacji:
+```gherkin
+Scenario: Rozwinięcie reszty
+  Given jest 7 kwalifikujących się zadań
+  Then pod 3 zadaniami widzę "+4 więcej"
+  When klikam "+4 więcej"
+  Then widzę pozostałe 4 zadania w tej samej, ręcznej kolejności
+
+Scenario: Zwinięcie
+  Given rozwinąłem "+4 więcej"
+  When zamykam panel i otwieram go ponownie
+  Then "+X więcej" jest znów zwinięte
+
+Scenario: Negatywny - dokładnie 3
+  Given jest dokładnie 3 kwalifikujące się zadania
+  Then nie ma "+X więcej"
+
+Scenario: Nic nie znika z aplikacji
+  When panel jest otwarty
+  Then wszystkie zadania nadal są na liście głównej (zgodnie z jej filtrami)
+```
+
+Wpływ na kod: bez zmiany modelu. Ten sam komponent panelu (`catch-up`): lokalny sygnał rozwinięcia, resetowany przy zamknięciu panelu; X = `rest().length`.
+
+---
+
+## Tabela pokrycia FR -> US
+
+| FR | US |
+|---|---|
+| FR-01 | US-10 |
+| FR-02 | US-11 |
+| FR-03 | US-12 |
+| FR-04 | US-10, US-12 |
+| FR-05 | US-11 |
+| FR-06 | US-02 |
+| FR-07 | US-02 |
+| FR-08 | US-03 |
+| FR-09 | US-04, US-05 |
+| FR-10 | US-03 |
+| FR-11 | US-06 |
+| FR-12 | US-07 |
+| FR-13 | US-08 |
+| FR-14 | US-07 |
+| FR-15 | US-09 |
+| FR-16 | US-01 |
+| FR-17 | US-02 |
+
+NFR: NFR-01 (US-02, US-05, US-10), NFR-02 (całość), NFR-03 (US-07, US-08, US-11: brak zgadywania), NFR-04 (US-01), NFR-05 (US-01).
+
+## Uwagi do realizacji
+
+- Kolejność prac minimalizująca ryzyko: US-01 -> US-02..US-05 -> US-06..US-09 -> US-10..US-12. US-10..US-12 nie zależą od nowych pól modelu i można je zrobić niezależnie.
+- Poza zakresem v1 bez zmian względem 01-extracted-requirements.md (m.in. przeplanowanie terminów, automatyczne wykrywanie gorszego dnia, osobny Inbox, skróty w tytule, skrót klawiaturowy wrzutu, zapamiętywanie trybu energii, licznik ukrytych zadań).

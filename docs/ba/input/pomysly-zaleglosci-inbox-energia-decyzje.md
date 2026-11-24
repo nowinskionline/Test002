@@ -18,5 +18,8 @@ Kontekst: opiera się na terminach zadań (data + opcjonalna godzina, zaległe o
 - **Trudność (P3.1/P3.2):** ręczne, opcjonalne oznaczenie przy zadaniu: lekkie / ciężkie. Domyślnie nieoznaczone.
 - **Miejsce (P3.3):** istniejący filtr kategorii (Dom, Praca, własne). Bez nowego pola.
 - **Tryb (P3.4–P3.6):** ręczny przełącznik "mam siłę / jestem wypruty", działa jak filtr (łączy się z "Dziś" i kategorią). Zaległe i dzisiejsze zadania są zawsze widoczne niezależnie od trybu.
-- **Do domknięcia:** co z zadaniami nieoznaczonymi w trybie (P3.7) i kryterium sukcesu (P1.7, P3.8).
+- **Nieoznaczone zadania (P3.7):** w trybie "jestem wypruty" (i "mam siłę") zadania bez oznaczenia trudności są POKAZYWANE. Tryb ukrywa tylko zadania jawnie oznaczone jako niepasujące.
 - **Poza zakresem v1:** zgadywanie trudności po treści, zgadywanie stanu po porze dnia, GPS.
+
+## Kryterium sukcesu (P1.7, P3.8) – wspólne dla wszystkich trzech
+- Po gorszym dniu w 2 minuty wiem, od czego zacząć. Każda z funkcji ma skracać drogę do decyzji "co teraz robię", a nie dokładać klikania.
