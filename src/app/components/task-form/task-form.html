@@ -56,6 +56,20 @@
       aria-describedby="new-task-error"
       class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-900 dark:scheme-dark"
     />
+    <!-- Trudność (opcjonalna) – używana przez tryb energii -->
+    <label for="new-task-difficulty" class="ml-2 text-slate-600 dark:text-slate-400"
+      >Trudność</label
+    >
+    <select
+      id="new-task-difficulty"
+      name="difficulty"
+      [(ngModel)]="difficulty"
+      class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-900"
+    >
+      <option value="">brak</option>
+      <option value="light">lekkie</option>
+      <option value="heavy">ciężkie</option>
+    </select>
   </div>
 
   @if (error()) {

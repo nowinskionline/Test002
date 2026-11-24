@@ -353,6 +353,310 @@ describe('TaskService', () => {
   });
 });
 
+describe('TaskService – szybki wrzut, przegląd, trudność', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.resetTestingModule();
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  const withTasks = (...tasks: Task[]) => serviceWith(JSON.stringify(tasks));
+
+  describe('US-01 nowe pola i zgodność wsteczna', () => {
+    it('stare zadania bez nowych pól: bez flagi, nieoznaczone, bez kopii', () => {
+      const service = withTasks(task('a'), task('b', { dueDate: '2026-12-01' }));
+      expect(service.tasks().every((t) => !t.needsReview && !t.difficulty)).toBe(true);
+      expect(localStorage.getItem(TASKS_BACKUP_KEY)).toBeNull();
+    });
+
+    it('needsReview i difficulty przetrwają odświeżenie', () => {
+      const service = withTasks(task('a'));
+      service.updateTask('a', { difficulty: 'heavy' });
+      service.addQuickTask('Wrzut');
+      TestBed.resetTestingModule();
+      const reloaded = TestBed.inject(TaskService);
+      expect(reloaded.tasks()[0]).toMatchObject({ title: 'Wrzut', needsReview: true });
+      expect(reloaded.tasks()[1].difficulty).toBe('heavy');
+      expect(localStorage.getItem(TASKS_BACKUP_KEY)).toBeNull();
+    });
+
+    it('negatywny: nieprawidłowe wartości → bez flagi i nieoznaczone, oryginał w kopii', () => {
+      const raw = JSON.stringify([{ ...task('a'), difficulty: 'średnie', needsReview: 'tak' }]);
+      const service = serviceWith(raw);
+      expect(service.tasks()[0]).toEqual(task('a'));
+      expect(localStorage.getItem(TASKS_BACKUP_KEY)).toBe(raw);
+    });
+
+    it('kolejność kluczy w localStorage nie wywołuje kopii zapasowej (B-1, EC-01)', () => {
+      const raw = JSON.stringify([
+        {
+          id: 'a',
+          title: 'a',
+          categoryId: 'praca',
+          completed: false,
+          createdAt: 1,
+          difficulty: 'heavy',
+          dueDate: '2026-12-01',
+          needsReview: true,
+        },
+        // kolejność, jaką zapisywała poprzednia wersja updateTask
+        { id: 'b', completed: false, createdAt: 1, title: 'b', categoryId: 'dom' },
+      ]);
+      serviceWith(raw);
+      expect(localStorage.getItem(TASKS_BACKUP_KEY)).toBeNull();
+    });
+
+    it('dodanie terminu do zadania z trudnością i odświeżenie: nadal bez kopii (EC-01)', () => {
+      const service = withTasks(task('a', { difficulty: 'heavy', needsReview: true }));
+      service.updateTask('a', { dueDate: '2026-12-01' });
+      TestBed.resetTestingModule();
+      TestBed.inject(TaskService);
+      expect(localStorage.getItem(TASKS_BACKUP_KEY)).toBeNull();
+    });
+
+    it('istniejąca kopia nie jest nadpisywana przez zdrowe uruchomienia (EC-01)', () => {
+      localStorage.setItem(TASKS_BACKUP_KEY, '{uszkodzone');
+      for (let i = 0; i < 3; i++) {
+        TestBed.resetTestingModule();
+        withTasks(task('a', { difficulty: 'light' }), task('b', { needsReview: true }));
+      }
+      expect(localStorage.getItem(TASKS_BACKUP_KEY)).toBe('{uszkodzone');
+    });
+
+    it('needsReview: false = brak flagi i nie tworzy kopii (EC-01b)', () => {
+      const service = serviceWith(JSON.stringify([{ ...task('a'), needsReview: false }]));
+      expect('needsReview' in service.tasks()[0]).toBe(false);
+      expect(localStorage.getItem(TASKS_BACKUP_KEY)).toBeNull();
+    });
+  });
+
+  describe('US-02 szybki wrzut', () => {
+    it('wrzut: na górę listy, kategoria "Inne", bez terminu, z flagą', () => {
+      const service = withTasks(task('stare'));
+      const result = service.addQuickTask('  Zadzwonić do lekarza ');
+      expect(result.ok).toBe(true);
+      expect(service.tasks()[0]).toMatchObject({
+        title: 'Zadzwonić do lekarza',
+        categoryId: 'inne',
+        needsReview: true,
+      });
+      expect('dueDate' in service.tasks()[0]).toBe(false);
+      expect(saved()[0].needsReview).toBe(true);
+    });
+
+    it('brak kategorii "Inne": pierwsza istniejąca', () => {
+      localStorage.setItem(
+        'todoartur.categories',
+        JSON.stringify([
+          { id: 'praca', name: 'Praca', color: 'sky' },
+          { id: 'dom', name: 'Dom', color: 'amber' },
+        ]),
+      );
+      const service = serviceWith();
+      service.addQuickTask('Kupić klej');
+      expect(service.tasks()[0]).toMatchObject({ categoryId: 'praca', needsReview: true });
+    });
+
+    it('kategoria o nazwie "Inne" z innym id (EC-09)', () => {
+      localStorage.setItem(
+        'todoartur.categories',
+        JSON.stringify([
+          { id: 'praca', name: 'Praca', color: 'sky' },
+          { id: 'uuid-1', name: 'Inne', color: 'slate' },
+        ]),
+      );
+      const service = serviceWith();
+      service.addQuickTask('Coś');
+      expect(service.tasks()[0].categoryId).toBe('uuid-1');
+    });
+
+    it.each(['', '   '])('negatywny: pusty tytuł %j – brak zadania i zapisu', (title) => {
+      const service = serviceWith();
+      expect(service.addQuickTask(title)).toEqual({ ok: false, error: 'empty-title' });
+      expect(service.tasks().length).toBe(0);
+      expect(localStorage.getItem(TASKS_KEY)).toBeNull();
+    });
+
+    it('pełny formularz nie ustawia flagi', () => {
+      const service = serviceWith();
+      service.addTask('Raport', 'praca', { dueDate: '2026-12-01' });
+      expect('needsReview' in saved()[0]).toBe(false);
+    });
+
+    it('ten sam tytuł dwa razy: dwa osobne zadania, licznik +2 (EC-10)', () => {
+      const service = serviceWith();
+      service.addQuickTask('Zadzwonić do lekarza');
+      service.addQuickTask('Zadzwonić do lekarza');
+      expect(service.tasks().length).toBe(2);
+      expect(service.tasks()[0].id).not.toBe(service.tasks()[1].id);
+      expect(service.reviewCount()).toBe(2);
+    });
+
+    it('błąd zapisu: zadanie w pamięci i flaga saveFailed (EC-07)', () => {
+      const service = serviceWith();
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new DOMException('quota', 'QuotaExceededError');
+      });
+      expect(service.addQuickTask('Kupić mleko').ok).toBe(true);
+      expect(service.tasks()[0].title).toBe('Kupić mleko');
+      expect(service.saveFailed()).toBe(true);
+    });
+  });
+
+  describe('US-03 licznik "Do przejrzenia"', () => {
+    it('liczy tylko nieukończone z flagą, we wszystkich kategoriach', () => {
+      const service = withTasks(
+        task('a', { needsReview: true }),
+        task('b', { needsReview: true, categoryId: 'dom' }),
+        task('c', { needsReview: true, categoryId: 'inne' }),
+        task('d', { needsReview: true, completed: true }),
+        task('e'),
+      );
+      expect(service.reviewCount()).toBe(3);
+    });
+
+    it('brak flag: licznik 0 (przycisk ukryty)', () => {
+      expect(withTasks(task('a')).reviewCount()).toBe(0);
+    });
+
+    it('brak automatycznego kasowania starych wrzutów', () => {
+      const old = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const service = withTasks(task('a', { needsReview: true, createdAt: old }));
+      expect(service.tasks()[0].needsReview).toBe(true);
+    });
+
+    it('ukończenie i przywrócenie zadania z flagą (EC-04)', () => {
+      const service = withTasks(
+        task('a', { needsReview: true }),
+        task('b', { needsReview: true }),
+        task('c', { needsReview: true }),
+      );
+      service.toggleTask('a');
+      expect(service.reviewCount()).toBe(2);
+      expect(service.tasks()[0].needsReview).toBe(true); // flaga zostaje (Q-08)
+      service.toggleTask('a');
+      expect(service.reviewCount()).toBe(3);
+    });
+  });
+
+  describe('US-04 flaga znika sama po uzupełnieniu (B-3)', () => {
+    const flagged = (extra: Partial<Task> = {}) =>
+      withTasks(task('a', { categoryId: 'inne', needsReview: true, ...extra }));
+
+    it('zmiana kategorii zdejmuje flagę, licznik maleje', () => {
+      const service = flagged();
+      expect(service.reviewCount()).toBe(1);
+      service.updateTask('a', { categoryId: 'dom' });
+      expect('needsReview' in saved()[0]).toBe(false);
+      expect(service.reviewCount()).toBe(0);
+    });
+
+    it('nadanie terminu zdejmuje flagę', () => {
+      const service = flagged();
+      service.updateTask('a', { dueDate: '2026-12-01' });
+      expect(service.tasks()[0].needsReview).toBeUndefined();
+    });
+
+    it('negatywny: tytuł, trudność albo ta sama kategoria – flaga zostaje', () => {
+      const service = flagged();
+      service.updateTask('a', { title: 'Nowy tytuł' });
+      service.updateTask('a', { difficulty: 'light' });
+      service.updateTask('a', { categoryId: 'inne', dueDate: null, dueTime: null });
+      expect(service.tasks()[0]).toMatchObject({ needsReview: true, difficulty: 'light' });
+    });
+
+    it('negatywny: odrzucona edycja nie zmienia zadania ani flagi', () => {
+      const service = flagged();
+      const result = service.updateTask('a', { categoryId: 'dom', dueDate: '2026-02-31' });
+      expect(result.ok).toBe(false);
+      expect(service.tasks()[0]).toMatchObject({ categoryId: 'inne', needsReview: true });
+    });
+
+    it('termin już istniał, edycja samego tytułu (pełny stan jak w formularzu): flaga zostaje (EC-03)', () => {
+      const service = flagged({ dueDate: '2026-12-01' });
+      service.updateTask('a', {
+        title: 'Inny',
+        categoryId: 'inne',
+        dueDate: '2026-12-01',
+        dueTime: null,
+        difficulty: null,
+      });
+      expect(service.tasks()[0].needsReview).toBe(true);
+    });
+
+    it('zmiana terminu na inny nie zdejmuje flagi (EC-03)', () => {
+      const service = flagged({ dueDate: '2026-12-01' });
+      service.updateTask('a', { dueDate: '2026-12-02' });
+      expect(service.tasks()[0].needsReview).toBe(true);
+    });
+  });
+
+  describe('US-05 przycisk "OK"', () => {
+    it('zdejmuje flagę, reszta zadania i kolejność bez zmian', () => {
+      const service = withTasks(
+        task('x'),
+        task('a', { categoryId: 'inne', needsReview: true, dueDate: '2026-12-01' }),
+        task('y'),
+      );
+      service.dismissReview('a');
+      expect(service.tasks().map((t) => t.id)).toEqual(['x', 'a', 'y']);
+      expect(saved()[1]).toEqual(task('a', { categoryId: 'inne', dueDate: '2026-12-01' }));
+      expect(service.reviewCount()).toBe(0);
+    });
+
+    it('zadanie bez flagi: brak zapisu', () => {
+      const service = withTasks(task('a'));
+      const setItem = vi.spyOn(Storage.prototype, 'setItem');
+      service.dismissReview('a');
+      service.dismissReview('nie-ma');
+      expect(setItem).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('US-06 trudność', () => {
+    it('dodanie z trudnością "ciężkie"', () => {
+      const service = serviceWith();
+      service.addTask('Raport', 'praca', {}, { difficulty: 'heavy' });
+      expect(saved()[0].difficulty).toBe('heavy');
+    });
+
+    it('domyślnie brak klucza difficulty', () => {
+      const service = serviceWith();
+      service.addTask('Raport', 'praca', {}, { difficulty: null });
+      service.addTask('Raport 2', 'praca');
+      expect(saved().every((t) => !('difficulty' in t))).toBe(true);
+    });
+
+    it('"brak" w edycji zdejmuje oznaczenie bez klucza w localStorage', () => {
+      const service = withTasks(task('a', { difficulty: 'light' }));
+      service.updateTask('a', { difficulty: null });
+      expect('difficulty' in saved()[0]).toBe(false);
+      expect(localStorage.getItem(TASKS_KEY)).not.toContain('null');
+    });
+
+    it('edycja samego tytułu zostawia trudność (EC-16)', () => {
+      const service = withTasks(task('a', { difficulty: 'heavy' }));
+      service.updateTask('a', { title: 'Inny' });
+      expect(service.tasks()[0].difficulty).toBe('heavy');
+    });
+
+    it('negatywny: wartość spoza light/heavy/null jest odrzucona, zadanie bez zmian', () => {
+      const service = withTasks(task('a', { difficulty: 'light' }));
+      const bad = 'medium' as unknown as 'light';
+      expect(service.updateTask('a', { title: 'X', difficulty: bad })).toEqual({
+        ok: false,
+        error: 'invalid-difficulty',
+      });
+      expect(service.tasks()[0]).toEqual(task('a', { difficulty: 'light' }));
+      expect(service.addTask('Y', 'praca', {}, { difficulty: bad })).toEqual({
+        ok: false,
+        error: 'invalid-difficulty',
+      });
+    });
+  });
+});
+
 describe('TodayService (K-05, R-01)', () => {
   beforeEach(() => TestBed.resetTestingModule());
 

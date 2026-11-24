@@ -23,6 +23,7 @@
             (toggled)="taskService.toggleTask(task.id)"
             (removed)="remove(task)"
             (edited)="edited(task.id)"
+            (reviewed)="taskService.dismissReview(task.id)"
           />
         </li>
       }
@@ -31,17 +32,9 @@
     <div
       class="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400"
     >
-      @if (todayOnly()) {
-        <p class="text-lg">
-          Brak zadań na dziś ani zaległych{{
-            categoryName() ? ' w kategorii „' + categoryName() + '”' : ''
-          }}
-        </p>
-      } @else if (completed().length) {
-        <p class="text-lg">Wszystko zrobione 🎉</p>
-      } @else {
-        <p class="text-lg">Brak zadań</p>
-        <p class="mt-1 text-sm">Dodaj pierwsze zadanie powyżej.</p>
+      <p class="text-lg">{{ emptyMessage().title }}</p>
+      @if (emptyMessage().hint) {
+        <p class="mt-1 text-sm">{{ emptyMessage().hint }}</p>
       }
     </div>
   }

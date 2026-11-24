@@ -4,7 +4,7 @@ import { Task } from '../../models/task.model';
 import { TaskService } from '../../services/task.service';
 import { TodayService } from '../../services/today.service';
 import { ToastService } from '../../services/toast.service';
-import { matchesFilters } from '../../utils/task-filters';
+import { emptyListMessage, matchesFilters, TaskFilters } from '../../utils/task-filters';
 import { TaskItem } from '../task-item/task-item';
 
 @Component({
@@ -17,16 +17,14 @@ export class TaskList {
   private readonly toast = inject(ToastService);
   private readonly today = inject(TodayService).today;
 
-  /** id kategorii do filtrowania; null = wszystkie. */
-  readonly categoryFilter = input<string | null>(null);
-  /** Filtr "Dziś": tylko zadania na dziś i zaległe. */
-  readonly todayOnly = input(false);
+  /** Wszystkie aktywne filtry naraz: kategoria, "Dziś", "Do przejrzenia", tryb energii. */
+  readonly filters = input<TaskFilters>({ categoryId: null, todayOnly: false });
 
   protected readonly showCompleted = signal(false);
 
   /** Wspólna lista widocznych zadań – z niej korzystają szablon, drop i "Ułóż po terminie". */
   private readonly filtered = computed(() => {
-    const filters = { categoryId: this.categoryFilter(), todayOnly: this.todayOnly() };
+    const filters = this.filters();
     const now = this.today();
     return this.taskService.tasks().filter((t) => matchesFilters(t, filters, now));
   });
@@ -35,9 +33,14 @@ export class TaskList {
   protected readonly completed = computed(() => this.filtered().filter((t) => t.completed));
 
   protected readonly categoryName = computed(() => {
-    const id = this.categoryFilter();
+    const id = this.filters().categoryId;
     return id ? (this.taskService.categoryById().get(id)?.name ?? null) : null;
   });
+
+  /** Komunikat pustej listy wg tabeli pierwszeństwa (B-2). */
+  protected readonly emptyMessage = computed(() =>
+    emptyListMessage(this.filters(), this.categoryName(), this.completed().length > 0),
+  );
 
   protected drop(event: CdkDragDrop<Task[], Task[], string>): void {
     // Indeks "skąd" liczymy z id trzymanego zadania, a nie z event.previousIndex:

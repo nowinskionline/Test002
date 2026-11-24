@@ -42,7 +42,10 @@
     </div>
   }
 
-  <app-task-form [categories]="taskService.categories()" (added)="onAdded($event)" />
+  <div class="flex flex-col gap-3">
+    <app-quick-add (added)="onAdded($event)" />
+    <app-task-form [categories]="taskService.categories()" (added)="onAdded($event)" />
+  </div>
 
   <nav aria-label="Filtry" class="flex flex-wrap items-center gap-2">
     <button
@@ -97,13 +100,58 @@
         <path fill-rule="evenodd" d="M5.2 7.2a.75.75 0 0 1 1.06 0L10 10.94l3.74-3.74a.75.75 0 1 1 1.06 1.06l-4.27 4.27a.75.75 0 0 1-1.06 0L5.2 8.26a.75.75 0 0 1 0-1.06Z" />
       </svg>
     </button>
+
+    <!-- Drugi rząd: pomoc "co teraz" – ogarnianie zaległych, przegląd wrzutów, tryb energii. -->
+    <span class="basis-full" aria-hidden="true"></span>
+    <button
+      type="button"
+      (click)="catchUpOpen.set(!catchUpOpen())"
+      [attr.aria-expanded]="catchUpOpen()"
+      aria-controls="catch-up-panel"
+      class="rounded-full border px-3 py-1 text-sm font-medium transition"
+      [class]="
+        catchUpOpen()
+          ? 'border-blue-600 bg-blue-600 text-white'
+          : 'border-blue-300 bg-white text-blue-700 hover:border-blue-500 dark:border-blue-500/50 dark:bg-slate-900 dark:text-blue-300 dark:hover:border-blue-400'
+      "
+    >
+      Ogarnij zaległe
+    </button>
+    @if (taskService.reviewCount() > 0 || reviewOnly()) {
+      <button
+        type="button"
+        (click)="reviewOnly.set(!reviewOnly())"
+        [attr.aria-pressed]="reviewOnly()"
+        class="rounded-full px-3 py-1 text-sm font-medium transition"
+        [class]="reviewOnly() ? 'bg-amber-500 text-white dark:bg-amber-600' : 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:hover:bg-amber-500/25'"
+      >
+        Do przejrzenia: {{ taskService.reviewCount() }}
+      </button>
+    }
+    <div role="group" aria-label="Tryb energii" class="flex rounded-full bg-slate-200/70 p-0.5 dark:bg-slate-800">
+      @for (mode of energyModes; track mode) {
+        <button
+          type="button"
+          (click)="energy.set(mode)"
+          [attr.aria-pressed]="energy() === mode"
+          class="rounded-full px-3 py-0.5 text-sm font-medium transition"
+          [class]="energy() === mode ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'"
+        >
+          {{ energyLabels[mode] }}
+        </button>
+      }
+    </div>
   </nav>
 
   @if (showCategories()) {
     <app-category-manager />
   }
 
-  <app-task-list [categoryFilter]="filter()" [todayOnly]="todayOnly()" />
+  @if (catchUpOpen()) {
+    <app-catch-up [categoryId]="filter()" [categoryName]="filterName()" (showAll)="setFilter(null)" />
+  }
+
+  <app-task-list [filters]="filters()" />
 
   <p class="text-center text-xs text-slate-400 dark:text-slate-600">
     Dwuklik na zadaniu = edycja · Przeciągnij za uchwyt, aby zmienić kolejność

@@ -1,4 +1,4 @@
-import { Task } from '../models/task.model';
+import { Difficulty, Task } from '../models/task.model';
 
 /**
  * Wspólny moduł czasu dla terminów zadań.
@@ -104,7 +104,7 @@ export function compareByDue(a: Due, b: Due): number {
 /**
  * Zamienia dowolną wartość wczytaną z localStorage na poprawne zadanie albo null.
  * Wymagane: niepusty tekstowy `id` i `title`. Pozostałe pola dostają bezpieczne wartości domyślne,
- * a uszkodzony termin jest po prostu pomijany.
+ * a uszkodzony termin, flaga czy trudność są po prostu pomijane.
  */
 export function normalizeTask(raw: unknown): Task | null {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
@@ -125,5 +125,12 @@ export function normalizeTask(raw: unknown): Task | null {
     // Godzina tylko przy poprawnej dacie.
     if (isValidDueTime(r['dueTime'])) task.dueTime = r['dueTime'];
   }
+  // Nowe pola: przepuszczamy tylko poprawne wartości, resztę po cichu pomijamy.
+  if (r['needsReview'] === true) task.needsReview = true;
+  if (isDifficulty(r['difficulty'])) task.difficulty = r['difficulty'];
   return task;
+}
+
+export function isDifficulty(value: unknown): value is Difficulty {
+  return value === 'light' || value === 'heavy';
 }

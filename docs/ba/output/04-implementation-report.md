@@ -1,73 +1,80 @@
-# Raport implementacji – terminy zadań ("Todo Artur")
+# Raport implementacji – zaległości, szybki wrzut, tryb energii ("Todo Artur")
 
-Wejście: `02-user-stories-spec.md`, `03-qa-review-report.md`, `docs/ba/input/przyklad-terminy-zadan-decyzje.md`.
-Plik `docs/ba/input/pomysly-zaleglosci-inbox-energia.md` świadomie pominięty (inna funkcja, bez analizy).
+Wejście: `02-user-stories-spec.md` (US-01..US-12), `03-qa-review-report.md` (B-1..B-4, EC-01..EC-16), `docs/ba/input/pomysly-zaleglosci-inbox-energia-decyzje.md`.
+Zasady: blokery B-1..B-4 rozstrzygnięte wg rekomendacji QA. Rekomendacje R-3..R-7 (kwestionujące Q-04..Q-06, osobne pole wrzutu, "OK" bez Cofnij) NIE wdrożone – obowiązują założenia z 02.
 
 ## Wynik
 
 | Polecenie | Wynik |
 |---|---|
-| `npm run build` | OK – bundle wygenerowany bez błędów i ostrzeżeń (initial 314 kB / 79 kB transfer) |
-| `npm test` | OK – 2 pliki testów, **111 testów zaliczonych**, 0 błędów |
+| `npm run build` | OK – bez błędów i ostrzeżeń (initial 336 kB / 83 kB transfer) |
+| `npm test` | OK – 6 plików testów, **196 testów zaliczonych** (było 111 w 2 plikach), 0 błędów; wszystkie dotychczasowe testy bez zmian i zielone |
 
-## Zaimplementowane historie
-
-Wszystkie: US-01 … US-11.
-
-| US | Co zrobiono | Testy (plik → opis) |
-|---|---|---|
-| US-01 Dodanie z terminem | Natywne pola `type="date"` (min/max 1900–2100) i `type="time"` w formularzu. `addTask(title, cat, {dueDate, dueTime})` waliduje i zwraca wynik; formularz czyści się tylko po sukcesie, błąd inline pod polem. | `task.service.spec` → „US-01 …” (sama data, data+godzina, bez terminu, przeszłość = zaległe, godzina bez daty, 4 złe daty, 2 daty graniczne – EC-02) |
-| US-02 Edycja/usuwanie | W edycji pola daty i godziny wypełnione bieżącym terminem (N-07). Formularz zawsze wysyła pełny stan terminu (`''` → `null`). `updateTask` realizuje K-02, nie zapisuje kluczy `null`. Edycja zamyka się tylko po sukcesie. | „US-02 …” (zmiana, `dueDate:null`, `dueTime:null` – EC-01, brak klucza = bez zmian, ukończone, odrzucenie całej zmiany, godzina przy usuwanej dacie, pusty tytuł) |
-| US-03 Zgodność wsteczna | `loadTasks()` normalizuje każdy element (`normalizeTask`), pomija śmieci, unikalizuje zdublowane `id`, nieznana kategoria → pierwsza istniejąca. Bez zapisu zwrotnego do `todoartur.tasks` (K-06). | `due-date.spec` → „normalizeTask” (6 złych `dueDate`, zła godzina, godzina bez daty, nie-zadania, złe typy pól); `task.service.spec` → „US-03 …” (stare dane bez zapisu, śmieci + kopia, 3 nieczytelne JSON – EC-07, duplikaty id – EC-08, kategoria `7`) |
-| US-04 Dziś / po terminie | `isToday`, `isOverdue` w `utils/due-date.ts` – porównanie kluczy `YYYY-MM-DD` w strefie lokalnej, godzina bez wpływu. `TodayService.today` odświeżany timerem do północy i przy `visibilitychange`; zegar wstrzykiwany tokenem `NOW` (R-01). | `due-date.spec` → tabela granicy dnia, brak/uszkodzony termin, przejście północy; „zmiana czasu i strefy” (5 przypadków Europe/Warsaw DST + America/Los_Angeles – EC-09); `task.service.spec` → „TodayService” (północ, visibilitychange) |
-| US-05 Wyróżnienie | Tekst terminu na czerwono (`text-red-700` / `dark:text-red-300`) + etykieta „Po terminie” (`bg-red-100 text-red-800` / `dark:bg-red-500/15 dark:text-red-300`) – N-03: czerwony jest tekst terminu i etykieta. Etykieta jest tekstem (czytnik ekranu, skala szarości). Wiersz metadanych `flex-wrap`, więc długie tytuły zawijają się (EC-11). | `task.service.spec` → „US-05 cofnięcie usunięcia zachowuje termin”; reszta wizualna – sprawdzenie ręczne (brak testów komponentów w projekcie) |
-| US-06 Ukończone bez czerwieni | `isOverdue` zwraca `false` dla ukończonych; termin ukończonego w stonowanym szarym. | `due-date.spec` → „ukończone zadanie nigdy nie jest po terminie” |
-| US-07 Format | `formatDue`: dziś/jutro/wczoraj, `sb 28.11`, rok gdy inny niż bieżący, godzina po spacji. Brak terminu = brak elementu. | `due-date.spec` → 13 przypadków (US-07 + EC-10), przełom roku, „jutro” → „dziś” po zmianie dnia |
-| US-08 Filtr „Dziś” | Przycisk „Dziś” (`aria-pressed`) obok filtrów kategorii, łączy się z kategorią (`matchesFilters`). **Wariant R-02**: nieukończone na dziś + zaległe; ukończone tylko z terminem dokładnie dziś i tylko po „Pokaż ukończone”. Pusty wynik: „Brak zadań na dziś ani zaległych w kategorii „X””. Toast, gdy dodane/edytowane zadanie wypada poza filtr (EC-03). | `due-date.spec` → „filtr Dziś” (nieukończone, ukończone dziś vs przeszłość, łączenie z kategorią, wyłączenie filtra) |
-| US-09 Ręczna kolejność | Bez sortowania automatycznego; nowe zadanie zawsze na górze. `drop` liczy indeks źródłowy z `cdkDragData` (id), nie z `previousIndex` (EC-04). | `task.service.spec` → „US-09 …” (termin nie zmienia kolejności, nowe na górze) + „po akcji ręczne przeciąganie działa” |
-| US-10 „Ułóż po terminie” | Przycisk nad listą (gdy ≥ 2 widoczne nieukończone). `sortByDue(visibleIds)` – stabilny sort `compareByDue`, tylko widoczne zadania, reszta na swoich slotach; zwraca poprzednią kolejność albo `null` (brak zmian = brak zapisu i toasta). „Cofnij” → `restoreOrder` (B-03). | `due-date.spec` → komparator (C,D,B,A,E; 00:00 vs brak godziny; zaległe przed dzisiejszymi; remisy – EC-06); `task.service.spec` → „US-10 …” (zapis, filtr, brak zmian bez zapisu, cofnij, cofnij po dodaniu i po usunięciu – EC-05) |
-| US-11 Błąd zapisu | `saveJson` zwraca `boolean`; `TaskService.saveFailed` → trwały baner „Nie udało się zapisać zmian. Po odświeżeniu mogą zniknąć.” (zamykany ręcznie, znika po udanym zapisie). | `task.service.spec` → „US-11 …” (quota → brak wyjątku + flaga, kolejny poprawny zapis kasuje flagę) |
+`npm install` nie był uruchamiany (node_modules istniało), `package-lock.json` bez zmian. Nic nie zostało zacommitowane.
 
 ## Rozstrzygnięcie blokerów QA
 
-- **B-01** – `addTask`/`updateTask` zwracają `TaskResult` (`{ok:true, task}` albo `{ok:false, error}`; kody: `empty-title`, `unknown-category`, `invalid-date`, `invalid-time`, `time-without-date`, `not-found`). Formularz i edycja czyszczą/zamykają się tylko po sukcesie; błąd pokazany inline (`role="alert"`). Komunikaty w `TASK_ERROR_MESSAGES` (N-05). `TaskForm` i `TaskItem` wołają serwis bezpośrednio (jak `CategoryManager`), żeby dostać wynik.
-- **B-02** – natywne `<input type="date">`/`type="time">`. Walidacja na poziomie serwisu (testy jednostkowe). Rok 6-cyfrowy i daty spoza 1900–2100 są odrzucane z komunikatem.
-- **B-03** – „Cofnij” zapamiętuje tylko id zadań, które akcja ruszyła, i wstawia je z powrotem w ich obecne sloty; zadania dodane w międzyczasie zostają, usunięte są pomijane. Wspólny helper `placeInSlots` dla `reorder`, `sortByDue`, `restoreOrder`.
-- **B-04** – błędy walidacji inline przy formularzu; błąd zapisu jako osobny trwały baner. **Uproszczenie:** nie budowałem kolejki toastów. Toast nadal jest jeden naraz i nowy zastępuje poprzedni (np. „Ułóż po terminie” wypiera „Cofnij” usunięcia) – QA uznało to za akceptowalne (EC-05), jest test.
-- **B-05** – jeśli normalizacja cokolwiek zmieniła (śmieci, złe pola, duplikaty, nieczytelny JSON, nie-tablica), surowa wartość jest kopiowana do `todoartur.tasks.backup` przy wczytaniu, zanim pierwsza zmiana nadpisze `todoartur.tasks`. Duplikaty `id` dostają nowe id.
+| Bloker | Rozstrzygnięcie |
+|---|---|
+| B-1 kolejność kluczy / fałszywe kopie | `loadTasks` porównuje semantycznie: `canonicalJson` (klucze posortowane) zamiast `JSON.stringify`; `needsReview: false` traktowane jak brak flagi (EC-01b). Zdrowe dane nigdy nie zapisują kopii, więc prawdziwa kopia po uszkodzeniu nie jest nadpisywana przy kolejnych startach (EC-01). Naprawia to też istniejący błąd: poprzedni `updateTask` zapisywał klucze w innej kolejności niż `normalizeTask`, przez co kopia powstawała przy każdym starcie po edycji. Wybrano wariant "porównanie semantyczne" z rekomendacji (zamiast `buildTask`) – mniej kodu, odporne też na dane już zapisane przez starszą wersję. |
+| B-2 puste stany | Czysta funkcja `emptyListMessage` (`utils/task-filters.ts`) z tabelą pierwszeństwa: bez filtrów → "Wszystko zrobione 🎉" / "Brak zadań, Dodaj pierwsze…"; tylko "Dziś" (± kategoria) → dotychczasowy komunikat; tylko "Do przejrzenia" → "Brak zadań do przejrzenia"; każda inna kombinacja → "Brak zadań pasujących do filtrów" + "Aktywne filtry: …". Przy aktywnym filtrze nigdy "Wszystko zrobione". |
+| B-3 flaga a termin | Flaga znika, gdy `categoryId` po zapisie ≠ przed zapisem LUB zadanie przed zapisem nie miało `dueDate`, a po zapisie ma. Zmiana terminu na inny, tytułu, trudności lub zapis tej samej kategorii – flaga zostaje. |
+| B-4 ukończone z flagą | Filtr "Do przejrzenia" obejmuje tylko nieukończone (zgodnie z licznikiem). Etykieta "Do przejrzenia" i przycisk "OK" tylko przy nieukończonych. Ukończenie nie zmienia flagi (Q-08), więc przywrócenie zadania przywraca je do licznika. |
+
+## Zaimplementowane historie
+
+Wszystkie: US-01 … US-12.
+
+| US | Co zrobiono | Testy (plik → opis) |
+|---|---|---|
+| US-01 Nowe pola, zgodność wsteczna | `Task.needsReview?: true`, `Task.difficulty?: 'light' \| 'heavy'` (+ typ `Difficulty`, `DIFFICULTY_LABELS`). `normalizeTask` przepuszcza tylko `needsReview === true` i `light`/`heavy`; reszta pomijana. Bez migracji. | `due-date.spec` → "normalizeTask – flaga i trudność" (stare dane, poprawne wartości, 5 złych trudności, 5 złych flag); `task.service.spec` → "US-01 …" (stare dane bez kopii, przetrwanie odświeżenia, złe wartości → kopia, **EC-01** kolejność kluczy, **EC-01** termin + trudność + odświeżenie, **EC-01** kopia nienadpisywana przez 3 starty, **EC-01b** `needsReview:false`) |
+| US-02 Szybki wrzut | Komponent `components/quick-add/` nad formularzem: jedno pole, Enter = `TaskService.addQuickTask(title)` → góra listy, flaga, kategoria `inne` → kategoria o nazwie "Inne" (EC-09) → pierwsza istniejąca. Pole czyści się, fokus zostaje. Podpięte do istniejącego `onAdded` (toast "poza bieżącym filtrem"). Bez `maxlength` (ucinałby po cichu) – za długi tytuł zapisywany jako 200 znaków z widocznym komunikatem (EC-07). Pełny formularz bez flagi. | `task.service.spec` → "US-02 …" (wrzut, brak "Inne", **EC-09**, pusty/spacje, formularz bez flagi, **EC-10** duplikaty, **EC-07** błąd zapisu); `quick-add.spec` (Enter + czyszczenie + fokus, same spacje bez komunikatu, **EC-07** 500 znaków → 200 + informacja); `task-filters.spec` → toast dla wrzutu przy filtrze "Praca" |
+| US-03 Licznik i filtr | `TaskService.reviewCount` (nieukończone z flagą, wszystkie kategorie). Przycisk "Do przejrzenia: X" (`aria-pressed`) widoczny, gdy X > 0 lub filtr włączony. `TaskFilters.reviewOnly` w `matchesFilters` (AND). Brak auto-kasowania. | `task.service.spec` → "US-03 …" (3 z 4, 0, 30 dni, **EC-04** ukończenie/przywrócenie); `task-filters.spec` → "Do przejrzenia" (tylko nieukończone – B-4, AND z kategorią, wyłączony) |
+| US-04 Flaga znika sama | Reguła w `updateTask` (B-3). Edycja w `task-item` wysyła pełny stan (także trudność). Toast "poza bieżącym filtrem" po edycji działa z nowym filtrem (EC-03 sc. 3). | `task.service.spec` → "US-04 …" (kategoria, termin, negatywne: tytuł/trudność/ta sama kategoria, odrzucona edycja, **EC-03** istniejący termin + pełny stan z formularza, **EC-03** zmiana terminu na inny) |
+| US-05 Przycisk "OK" | `TaskService.dismissReview(id)` – usuwa tylko klucz flagi, bez zapisu gdy flagi nie ma. Przycisk "OK" poza kontenerem akcji ukrywanym do hovera (widoczny i dostępny z Tab – EC-06), `min-h-11` na mobile. Etykieta tekstowa "Do przejrzenia" (EC-05). | `task.service.spec` → "US-05 …" (flaga znika, kolejność/kategoria/termin bez zmian, licznik; brak zapisu bez flagi). Pusty widok filtra po OK → `task-filters.spec` "tylko Do przejrzenia" |
+| US-06 Trudność | Lista "Trudność: brak / lekkie / ciężkie" w `task-form` (wraca do "brak" po dodaniu – EC-16) i w edycji `task-item`. Etykieta "lekkie"/"ciężkie" na zadaniu. `addTask(title, cat, due, { difficulty })`, `TaskChanges.difficulty?: Difficulty \| null`, błąd `invalid-difficulty` + komunikat. | `task.service.spec` → "US-06 …" (dodanie "ciężkie", domyślnie brak klucza, "brak" w edycji bez `null` w storage, **EC-16** edycja tytułu zostawia trudność, wartość spoza zakresu odrzucona w `updateTask` i `addTask`) |
+| US-07 Przełącznik trybu | Trójstanowa grupa przycisków "Bez trybu / Mam siłę / Jestem wypruty" (`role="group"`, `aria-pressed`), sygnał w `app.ts` (niezapamiętywany). `TaskFilters.energy`, `matchesEnergy`. Tryb symetryczny wg Q-04. Komunikat pustej listy wg B-2. | `task-filters.spec` → tryb (wypruty, mam siłę, bez trybu / brak pola, AND z "Dziś" i "Do przejrzenia", toast dla ciężkiego w trybie wypruty); `emptyListMessage` (**EC-02** tryb ukrywa wszystko przy ukończonych) |
+| US-08 Zaległe i dzisiejsze zawsze widoczne | `matchesEnergy` używa `isInTodayFilter` (bez nowej definicji). "Dziś" z `TodayService`, więc północ przelicza listę. | `task-filters.spec` → zaległe ciężkie, dzisiejsze lekkie, przyszły termin nie chroni, ukończone z przeszłości nie chronione, północ |
+| US-09 Miejsce = kategoria | Brak nowego pola; tryb AND kategoria. | `task-filters.spec` → "tryb + kategoria" |
+| US-10 Przycisk i panel | Przycisk "Ogarnij zaległe" w drugim rzędzie paska filtrów (zawsze widoczny, `aria-expanded`); panel `components/catch-up/` nad listą, lista pod nim widoczna. Panel to tylko `computed` – niczego nie zapisuje. Pusty: "Brak zaległych i dzisiejszych zadań [w kategorii „X”]"; nie zamyka się sam. | `catch-up.spec` (util) → czysta funkcja nie zmienia danych; `components/catch-up/catch-up.spec` → otwarcie bez zapisu do `localStorage`, ostatnie "zrobione" → komunikat |
+| US-11 3 zadania wg ręcznej kolejności | `utils/catch-up.ts` → `pickCatchUp(tasks, categoryId, now)` = `{ top, rest, elsewhere }`; kandydaci: nieukończone z terminem dziś/zaległe; tylko filtr kategorii (Q-06). Checkbox "zrobione" (`toggleTask`), cel dotykowy ≥ 44 px. Dodatkowo (EC-11/N-4): przy filtrze kategorii linia "W innych kategoriach: N" z przyciskiem "Pokaż wszystkie kategorie". | `utils/catch-up.spec` → A,B,C z 5, "zrobione" → B,C,D, kategoria a nie tryb (F tak, G nie), flaga ignorowana, negatywne (bez terminu/jutro/ukończone), mniej niż 3, **EC-11**, **EC-12** północ i dzień zmiany czasu; komponent → "zrobione" i wejście następnego, **EC-11** komunikat |
+| US-12 "+X więcej" | Przycisk "+X więcej" / "Zwiń" (`aria-expanded`); reszta w tej samej kolejności, przewijana wewnątrz panelu (`max-h-72`, EC-14). Rozwinięcie resetuje się po zamknięciu (komponent tworzony przy otwarciu). | `utils/catch-up.spec` → 7 = 3 + 4, dokładnie 3, **EC-14** 303 → +300; komponent → "+4 więcej" i rozwinięcie |
 
 ## Zmienione pliki
 
-- `src/app/models/task.model.ts` – pola `dueDate?`, `dueTime?`.
-- `src/app/utils/due-date.ts` (nowy) – walidacja, `toLocalDateKey`, `isToday`, `isOverdue`, `isInTodayFilter`, `formatDue`, `compareByDue`, `normalizeTask`.
-- `src/app/utils/task-filters.ts` (nowy) – `matchesFilters` (kategoria + „Dziś”).
-- `src/app/services/today.service.ts` (nowy) – sygnał `today`, token `NOW`.
-- `src/app/services/storage.ts` – `saveJson` zwraca wynik, `loadRaw`/`saveRaw`.
-- `src/app/services/task.service.ts` – wyniki operacji, K-02, `sortByDue`, `restoreOrder`, `placeInSlots`, `loadTasks` z kopią zapasową, `saveFailed`.
-- `src/app/components/task-form/*` – pola terminu, błąd inline, emisja `added` po sukcesie.
-- `src/app/components/task-item/*` – pola terminu w edycji, wyświetlanie terminu i etykiety „Po terminie”.
-- `src/app/components/task-list/*` – filtr „Dziś”, przycisk „Ułóż po terminie”, bezpieczny `drop`, toast „poza filtrem”, pusty stan filtra.
-- `src/app/app.ts`, `src/app/app.html` – przycisk „Dziś”, baner błędu zapisu, toast po dodaniu poza filtrem.
-- `src/app/services/task.service.spec.ts` (rozbudowany), `src/app/utils/due-date.spec.ts` (nowy).
-- `README.md` – sekcje „Funkcje” i „Struktura”, opis ograniczenia wielu kart.
+Zmienione:
+- `src/app/models/task.model.ts` – pola `needsReview`, `difficulty`, typ `Difficulty`, etykiety.
+- `src/app/utils/due-date.ts` – `normalizeTask` (nowe pola), `isDifficulty`.
+- `src/app/utils/task-filters.ts` – `EnergyMode`, `reviewOnly`, `energy`, `matchesEnergy`, `hasActiveFilters`, `emptyListMessage`.
+- `src/app/services/task.service.ts` – `reviewCount`, `addQuickTask`, `dismissReview`, opcje `addTask`, trudność i reguła flagi w `updateTask`, `invalid-difficulty`, porównanie semantyczne w `loadTasks` (`canonicalJson`).
+- `src/app/app.ts`, `src/app/app.html` – szybki wrzut, drugi rząd filtrów ("Ogarnij zaległe", "Do przejrzenia: X", tryb energii), panel, jeden obiekt `filters` dla listy i toasta.
+- `src/app/components/task-list/task-list.ts/.html` – wejście `filters` (zamiast `categoryFilter` + `todayOnly`), komunikat pustej listy, podpięcie "OK".
+- `src/app/components/task-item/task-item.ts/.html` – trudność w edycji, etykiety "lekkie/ciężkie" i "Do przejrzenia", przycisk "OK".
+- `src/app/components/task-form/task-form.ts/.html` – pole trudności.
+- `src/app/services/task.service.spec.ts`, `src/app/utils/due-date.spec.ts` – tylko dopisane testy.
+- `README.md` – sekcje "Funkcje", ograniczenie wielu kart, "Struktura".
 
-## Założenia i uproszczenia
+Nowe:
+- `src/app/components/quick-add/quick-add.ts/.html/.spec.ts`
+- `src/app/components/catch-up/catch-up.ts/.html/.spec.ts`
+- `src/app/utils/catch-up.ts`, `src/app/utils/catch-up.spec.ts`
+- `src/app/utils/task-filters.spec.ts`
 
-1. **R-02 zamiast Q-01** (decyzja zlecającego): ukończone w filtrze „Dziś” tylko z terminem dokładnie dziś.
-2. **Q-02, Q-03, Q-04, Q-05, Q-06, Q-07** – przyjęte zgodnie z założeniami w 02.
-3. **Niepełna data w natywnym polu** (EC-02, pierwszy wiersz): przeglądarka daje `""`, więc zadanie dodaje się bez terminu. R-03 (blokada przez `validity.badInput`) nie wdrożone – zostaje jako ryzyko.
-4. **R-04** (podpowiedź „data w przeszłości”) – pominięte (opcjonalne).
-5. **R-06** (ponowne wczytanie z `localStorage` przy powrocie do karty) – pominięte; ograniczenie opisane w README konkretnym scenariuszem.
-6. **Kopia zapasowa** jest wykrywana przez porównanie `JSON.stringify` wyniku normalizacji z oryginałem. Zbędna kopia (np. inna kolejność kluczy w ręcznie edytowanych danych) jest nieszkodliwa.
-7. **Nieznana kategoria przy wczytaniu** → pierwsza istniejąca kategoria (EC-08); dotyczy też tekstowego id nieistniejącej kategorii.
-8. `updateTask` przy pustym tytule zwraca teraz błąd `empty-title` zamiast cichego ignorowania; dodatkowo sprawdza istnienie kategorii.
-9. Prettier: nowe i przepisane pliki są sformatowane. Szablonów `app.html` i `task-item.html` nie przeformatowywałem w całości (stary kod nie był w stylu Prettiera, a pełny reformat zaśmieciłby diff); `task-list.html` i `task-form.html` są sformatowane.
+## Pominięte, założone i dlaczego
 
-## Ryzyka / do sprawdzenia ręcznie
+- **R-3..R-7 nie wdrożone** (zgodnie z poleceniem): tryb symetryczny (Q-04), tryb niezapamiętywany i bez licznika ukrytych (Q-05), panel respektuje kategorię (Q-06), osobne pole wrzutu (Q-02), "OK" bez toasta/Cofnij (US-05).
+- **EC-11 / N-4** – wdrożone w formie informacyjnej (liczba w innych kategoriach + przycisk "Pokaż wszystkie kategorie", który tylko zdejmuje filtr kategorii). Nie zmienia zachowania Q-06; dodaje klik wyłącznie wtedy, gdy panel coś pomija.
+- **Kopia zapasowa (B-1, część "dodatkowo")** – zastosowano porównanie semantyczne, dzięki któremu kopia powstaje tylko przy rzeczywistej utracie danych; nie wprowadzono reguły "nigdy nie nadpisuj istniejącej kopii". Powód: poprzednie wersje tworzyły fałszywe kopie przy każdym starcie po edycji, więc wielu użytkowników ma już w `todoartur.tasks.backup` zdrowe dane; blokada nadpisywania sprawiłaby, że przyszłe prawdziwe uszkodzenie nie zostałoby zachowane. AC EC-01 ("zdrowe uruchomienia nie zmieniają kopii") jest spełnione i przetestowane.
+- **EC-07** – zamiast cichego ucięcia przez `maxlength` tytuł wrzutu jest skracany do 200 znaków z widocznym komunikatem (`role="status"`). Reszta tekstu nie jest zachowywana.
+- **EC-13** (toast "Cofnij" po "zrobione" w panelu) – oznaczony w QA "do ustalenia"; niewdrożony. Odznaczenie możliwe przez "Pokaż ukończone".
+- **EC-06 / EC-14 (360 px, 44 px)** – cele dotykowe "OK", checkboxa panelu i "+X więcej" mają `min-h-11` na mobile; wygląd w 360 px i w obu motywach nie był sprawdzany w przeglądarce (brak testów wizualnych w projekcie) – do odbioru ręcznego.
+- **Etykieta "Do przejrzenia" i "OK"** nie są pokazywane przy ukończonych zadaniach (B-4); flaga pozostaje w danych.
+- **N-5** – test "otwarcie panelu bez zapisu" sprawdza brak zapisu wywołanego przez panel (dane wejściowe zdrowe, więc start nie tworzy kopii).
 
-- **Brak testów komponentów** (projekt ich nie miał): układ na 320 px, cele dotyku (EC-11), wygląd w obu motywach i kontrast sprawdzić ręcznie w przeglądarce.
-- **R-05 – kontrast ukończonych:** wiersz ukończony ma istniejące `opacity-60`, więc szary tekst terminu (i tytuł – stan sprzed zmian) może spaść poniżej 4.5:1. Etykieta „Po terminie” nie występuje na ukończonych, więc wymóg z US-05 jest spełniony.
-- **Jeden toast naraz:** „Cofnij” usunięcia może zostać wyparte przez toast „Ułożono…” lub „poza filtrem”.
-- **Wiele kart:** ostatni zapis wygrywa (udokumentowane).
-- **Niepełna data** wpisana ręcznie w Firefoksie jest cicho pomijana (R-03).
-- Timer północy w karcie w tle może być dławiony; ratuje to `visibilitychange` przy powrocie do karty.
+## Otwarte ryzyka
+
+1. **Wiele kart (EC-15)** – poza zakresem: brak nasłuchu zdarzenia `storage`. Wrzut w jednej karcie może zniknąć po zapisie z drugiej; dodatkowo starsza wersja aplikacji w innej karcie usunie `needsReview` i `difficulty` (EC-01b sc. 2). Opisane w README.
+2. **Kolejka toastów (EC-08)** – poza zakresem: `ToastService` pokazuje jeden toast; wrzut poza filtrem (np. przy włączonym "Dziś" każdy wrzut) wypiera toast "Usunięto … Cofnij". Przy serii wrzutów widać jeden toast z ostatnim zadaniem.
+3. **Gęstość paska filtrów na wąskim ekranie (R-8)** – drugi rząd ("Ogarnij zaległe", "Do przejrzenia: X", 3 przyciski trybu) zawija się; do sprawdzenia wizualnie w 360 px i w obu motywach.
+4. **Założenia Q-01..Q-09 wymagają potwierdzenia przy odbiorze** – zwłaszcza Q-04 (czy "Mam siłę" ma ukrywać lekkie) i Q-06 (czy panel ma respektować kategorię); zmiana którejkolwiek reguły dotyka `matchesEnergy` / `pickCatchUp` i ich testów (jedno miejsce w kodzie każda).
+5. **Brak "Cofnij" dla "OK" i "zrobione" w panelu** – pomyłkowe kliknięcie "OK" nie da się odwrócić z UI (nie ma ręcznego "oznacz do przejrzenia").

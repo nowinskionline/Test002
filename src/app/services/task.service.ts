@@ -1,7 +1,19 @@
 import { computed, Injectable, signal } from '@angular/core';
 import { moveItemInArray } from '@angular/cdk/drag-drop';
-import { Category, CategoryColor, DEFAULT_CATEGORIES, Task } from '../models/task.model';
-import { compareByDue, isValidDueDate, isValidDueTime, normalizeTask } from '../utils/due-date';
+import {
+  Category,
+  CategoryColor,
+  DEFAULT_CATEGORIES,
+  Difficulty,
+  Task,
+} from '../models/task.model';
+import {
+  compareByDue,
+  isDifficulty,
+  isValidDueDate,
+  isValidDueTime,
+  normalizeTask,
+} from '../utils/due-date';
 import { createId, loadJson, loadRaw, saveJson, saveRaw } from './storage';
 
 export const TASKS_KEY = 'todoartur.tasks';
@@ -15,6 +27,7 @@ export type TaskError =
   | 'invalid-date'
   | 'invalid-time'
   | 'time-without-date'
+  | 'invalid-difficulty'
   | 'not-found';
 
 export type TaskResult = { ok: true; task: Task } | { ok: false; error: TaskError };
@@ -34,7 +47,20 @@ export interface TaskChanges {
   categoryId?: string;
   dueDate?: string | null;
   dueTime?: string | null;
+  /** `null` = zdejmij oznaczenie trudności. */
+  difficulty?: Difficulty | null;
 }
+
+/** Dodatkowe, opcjonalne cechy nowego zadania. */
+export interface NewTaskOptions {
+  /** null/brak = nieoznaczone. */
+  difficulty?: Difficulty | null;
+  /** true tylko dla szybkiego wrzutu. */
+  needsReview?: boolean;
+}
+
+/** Kategoria, do której trafia szybki wrzut (Q-01). */
+export const QUICK_ADD_CATEGORY_ID = 'inne';
 
 export const TASK_ERROR_MESSAGES: Record<TaskError, string> = {
   'empty-title': 'Treść zadania nie może być pusta.',
@@ -42,6 +68,7 @@ export const TASK_ERROR_MESSAGES: Record<TaskError, string> = {
   'invalid-date': 'Nieprawidłowa data. Wybierz istniejący dzień z lat 1900–2100.',
   'invalid-time': 'Nieprawidłowa godzina.',
   'time-without-date': 'Godzina wymaga wybrania daty.',
+  'invalid-difficulty': 'Nieprawidłowa trudność zadania.',
   'not-found': 'Nie znaleziono zadania.',
 };
 
@@ -67,6 +94,11 @@ export class TaskService {
   readonly activeCount = computed(() => this._tasks().filter((t) => !t.completed).length);
   readonly completedCount = computed(() => this._tasks().filter((t) => t.completed).length);
 
+  /** Licznik "Do przejrzenia": nieukończone zadania z flagą, we wszystkich kategoriach (Q-08). */
+  readonly reviewCount = computed(
+    () => this._tasks().filter((t) => t.needsReview && !t.completed).length,
+  );
+
   readonly categoryById = computed(() => new Map(this._categories().map((c) => [c.id, c])));
 
   readonly taskCountByCategory = computed(() => {
@@ -77,14 +109,23 @@ export class TaskService {
 
   // ---------- Zadania ----------
 
-  addTask(title: string, categoryId: string, due: DueInput = {}): TaskResult {
+  addTask(
+    title: string,
+    categoryId: string,
+    due: DueInput = {},
+    { difficulty = null, needsReview = false }: NewTaskOptions = {},
+  ): TaskResult {
     const trimmed = title.trim();
     if (!trimmed) return { ok: false, error: 'empty-title' };
     if (!this.categoryById().has(categoryId)) return { ok: false, error: 'unknown-category' };
+    if (difficulty !== null && !isDifficulty(difficulty)) {
+      return { ok: false, error: 'invalid-difficulty' };
+    }
 
     const dueResult = checkDue(due.dueDate || undefined, due.dueTime || undefined);
     if (typeof dueResult === 'string') return { ok: false, error: dueResult };
 
+    // Klucze opcjonalne dodajemy tylko wtedy, gdy mają wartość (bez `null`/`false` w localStorage).
     const task: Task = {
       id: createId(),
       title: trimmed,
@@ -92,10 +133,33 @@ export class TaskService {
       completed: false,
       createdAt: Date.now(),
       ...dueResult,
+      ...(needsReview ? { needsReview: true as const } : {}),
+      ...(difficulty ? { difficulty } : {}),
     };
     // Nowe zadanie ląduje na górze listy (także z terminem – termin nigdy nie sortuje sam).
     this.setTasks((tasks) => [task, ...tasks]);
     return { ok: true, task };
+  }
+
+  /**
+   * Szybki wrzut (US-02): sam tytuł, flaga "do przejrzenia", kategoria "Inne".
+   * Gdy "Inne" (id `inne`) usunięto: kategoria o nazwie "Inne", a w ostateczności pierwsza istniejąca.
+   */
+  addQuickTask(title: string): TaskResult {
+    const cats = this._categories();
+    const category =
+      cats.find((c) => c.id === QUICK_ADD_CATEGORY_ID) ??
+      cats.find((c) => c.name.trim().toLowerCase() === 'inne') ??
+      cats[0];
+    return this.addTask(title, category?.id ?? '', {}, { needsReview: true });
+  }
+
+  /** Przycisk "OK": zdejmuje flagę, nic więcej nie zmienia (ani kategorii, ani terminu, ani kolejności). */
+  dismissReview(id: string): void {
+    const current = this._tasks().find((t) => t.id === id);
+    if (!current?.needsReview) return; // brak flagi = brak zapisu
+    const { needsReview: _flag, ...rest } = current;
+    this.setTasks((tasks) => tasks.map((t) => (t.id === id ? rest : t)));
   }
 
   /** Nieprawidłowa wartość odrzuca CAŁĄ zmianę (także tytuł), a zadanie zostaje bez zmian. */
@@ -120,9 +184,36 @@ export class TaskService {
     const dueResult = checkDue(dueDate, dueTime);
     if (typeof dueResult === 'string') return { ok: false, error: dueResult };
 
-    // Budujemy zadanie od nowa bez starych pól terminu, żeby w localStorage nie zostały klucze z null.
-    const { dueDate: _oldDate, dueTime: _oldTime, ...rest } = current;
-    const updated: Task = { ...rest, title, categoryId, ...dueResult };
+    // Trudność: brak klucza = bez zmian, null = zdejmij oznaczenie.
+    if (changes.difficulty != null && !isDifficulty(changes.difficulty)) {
+      return { ok: false, error: 'invalid-difficulty' };
+    }
+    const difficulty =
+      changes.difficulty === undefined ? current.difficulty : (changes.difficulty ?? undefined);
+
+    // Flaga znika sama, gdy zadanie zostało uzupełnione (US-04, B-3):
+    // kategoria INNA niż przed zapisem albo termin, którego przed zapisem nie było.
+    // Zmiana tytułu, trudności czy terminu na inny termin flagi nie zdejmuje.
+    const completedReview =
+      categoryId !== current.categoryId || (!current.dueDate && dueResult.dueDate !== undefined);
+    const needsReview = current.needsReview && !completedReview;
+
+    // Budujemy zadanie od nowa bez starych pól opcjonalnych, żeby w localStorage nie zostały klucze z null.
+    const {
+      dueDate: _oldDate,
+      dueTime: _oldTime,
+      needsReview: _oldFlag,
+      difficulty: _oldDifficulty,
+      ...rest
+    } = current;
+    const updated: Task = {
+      ...rest,
+      title,
+      categoryId,
+      ...dueResult,
+      ...(needsReview ? { needsReview: true as const } : {}),
+      ...(difficulty ? { difficulty } : {}),
+    };
     this.setTasks((tasks) => tasks.map((t) => (t.id === id ? updated : t)));
     return { ok: true, task: updated };
   }
@@ -280,6 +371,27 @@ export function loadTasks(categories: Category[]): Task[] {
     tasks.push(task);
   }
 
-  if (JSON.stringify(tasks) !== JSON.stringify(parsed)) saveRaw(TASKS_BACKUP_KEY, raw);
+  // Porównanie semantyczne (B-1): kolejność kluczy w obiekcie nie ma znaczenia,
+  // a `needsReview: false` znaczy to samo co brak flagi. Dzięki temu poprawne dane
+  // nie tworzą kopii przy każdym starcie i nie nadpisują prawdziwej kopii po uszkodzeniu.
+  const original = Array.isArray(parsed) ? parsed.map(dropFalseFlag) : parsed;
+  if (canonicalJson(tasks) !== canonicalJson(original)) saveRaw(TASKS_BACKUP_KEY, raw);
   return tasks;
+}
+
+/** JSON z kluczami obiektów posortowanymi alfabetycznie – do porównań niezależnych od kolejności. */
+export function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : v,
+  );
+}
+
+/** `needsReview: false` nie jest uszkodzeniem (EC-01b) – usuwamy go tylko na potrzeby porównania. */
+function dropFalseFlag(item: unknown): unknown {
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) return item;
+  if ((item as Record<string, unknown>)['needsReview'] !== false) return item;
+  const { needsReview: _flag, ...rest } = item as Record<string, unknown>;
+  return rest;
 }

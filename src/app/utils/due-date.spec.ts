@@ -273,3 +273,33 @@ describe('due-date: normalizeTask (US-03, EC-08)', () => {
     });
   });
 });
+
+describe('due-date: normalizeTask – flaga i trudność (US-01)', () => {
+  const base = { id: 'a', title: 'Raport', categoryId: 'praca', completed: false, createdAt: 1 };
+
+  it('stare zadanie bez nowych pól: bez flagi i nieoznaczone', () => {
+    const task = normalizeTask(base)!;
+    expect('needsReview' in task).toBe(false);
+    expect('difficulty' in task).toBe(false);
+  });
+
+  it('poprawne wartości są zachowane', () => {
+    expect(normalizeTask({ ...base, needsReview: true, difficulty: 'heavy' })).toEqual({
+      ...base,
+      needsReview: true,
+      difficulty: 'heavy',
+    });
+    expect(normalizeTask({ ...base, difficulty: 'light' })!.difficulty).toBe('light');
+  });
+
+  it.each(['średnie', 'HEAVY', 1, null, {}])(
+    'nieprawidłowa trudność %j jest pomijana',
+    (difficulty) => {
+      expect('difficulty' in normalizeTask({ ...base, difficulty })!).toBe(false);
+    },
+  );
+
+  it.each(['tak', 1, 'true', false, null])('needsReview %j nie daje flagi', (needsReview) => {
+    expect('needsReview' in normalizeTask({ ...base, needsReview })!).toBe(false);
+  });
+});

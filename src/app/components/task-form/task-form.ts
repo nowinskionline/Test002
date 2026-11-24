@@ -1,6 +1,6 @@
 import { Component, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Category, Task } from '../../models/task.model';
+import { Category, Difficulty, Task } from '../../models/task.model';
 import { TASK_ERROR_MESSAGES, TaskService } from '../../services/task.service';
 
 @Component({
@@ -19,6 +19,8 @@ export class TaskForm {
   /** Wartości natywnych pól <input type="date"> i <input type="time">; '' = puste pole. */
   protected readonly dueDate = signal('');
   protected readonly dueTime = signal('');
+  /** '' = bez oznaczenia trudności (domyślnie). */
+  protected readonly difficulty = signal<Difficulty | ''>('');
   protected readonly error = signal<string | null>(null);
 
   /**
@@ -33,10 +35,15 @@ export class TaskForm {
 
   protected submit(): void {
     if (!this.title().trim()) return;
-    const result = this.taskService.addTask(this.title(), this.categoryId(), {
-      dueDate: this.dueDate() || null,
-      dueTime: this.dueTime() || null,
-    });
+    const result = this.taskService.addTask(
+      this.title(),
+      this.categoryId(),
+      {
+        dueDate: this.dueDate() || null,
+        dueTime: this.dueTime() || null,
+      },
+      { difficulty: this.difficulty() || null },
+    );
     // Przy błędzie NIE czyścimy formularza – użytkownik poprawia termin i próbuje ponownie.
     if (!result.ok) {
       this.error.set(TASK_ERROR_MESSAGES[result.error]);
@@ -45,6 +52,8 @@ export class TaskForm {
     this.title.set('');
     this.dueDate.set('');
     this.dueTime.set('');
+    // Trudność wraca do "brak", żeby kolejne zadanie jej nie dziedziczyło (EC-16).
+    this.difficulty.set('');
     this.error.set(null);
     this.added.emit(result.task);
   }

@@ -5,15 +5,17 @@ import { TaskService } from './services/task.service';
 import { ThemeService } from './services/theme.service';
 import { TodayService } from './services/today.service';
 import { ToastService } from './services/toast.service';
-import { matchesFilters } from './utils/task-filters';
+import { ENERGY_LABELS, EnergyMode, matchesFilters, TaskFilters } from './utils/task-filters';
 import { CategoryManager } from './components/category-manager/category-manager';
 import { TaskForm } from './components/task-form/task-form';
+import { QuickAdd } from './components/quick-add/quick-add';
+import { CatchUpPanel } from './components/catch-up/catch-up';
 import { shorten, TaskList } from './components/task-list/task-list';
 import { ToastComponent } from './components/toast/toast';
 
 @Component({
   selector: 'app-root',
-  imports: [TaskForm, TaskList, CategoryManager, ToastComponent],
+  imports: [QuickAdd, TaskForm, TaskList, CatchUpPanel, CategoryManager, ToastComponent],
   templateUrl: './app.html',
 })
 export class App {
@@ -29,11 +31,32 @@ export class App {
   private readonly selectedFilter = signal<string | null>(null);
   /** Filtr "Dziś" – łączy się z filtrem kategorii; nie jest zapisywany (jak "Pokaż ukończone"). */
   protected readonly todayOnly = signal(false);
+  /** Filtr "Do przejrzenia" (US-03). */
+  protected readonly reviewOnly = signal(false);
+  /** Tryb energii (US-07); domyślnie wyłączony i niezapamiętywany po odświeżeniu (Q-05). */
+  protected readonly energy = signal<EnergyMode>('off');
+  protected readonly energyModes: EnergyMode[] = ['off', 'rested', 'tired'];
+  protected readonly energyLabels = ENERGY_LABELS;
+  /** Panel "Ogarnij zaległe" – otwierany tylko na żądanie (US-10). */
+  protected readonly catchUpOpen = signal(false);
 
   /** Jeśli wybrana kategoria zniknie, wracamy do "Wszystkie". */
   protected readonly filter = computed(() => {
     const id = this.selectedFilter();
     return id && this.taskService.categoryById().has(id) ? id : null;
+  });
+
+  /** Wszystkie filtry listy w jednym obiekcie – ten sam dla listy i toasta "poza filtrem". */
+  protected readonly filters = computed<TaskFilters>(() => ({
+    categoryId: this.filter(),
+    todayOnly: this.todayOnly(),
+    reviewOnly: this.reviewOnly(),
+    energy: this.energy(),
+  }));
+
+  protected readonly filterName = computed(() => {
+    const id = this.filter();
+    return id ? (this.taskService.categoryById().get(id)?.name ?? null) : null;
   });
 
   protected setFilter(id: string | null): void {
@@ -42,8 +65,7 @@ export class App {
 
   /** Nowe zadanie poza bieżącym filtrem nie pojawi się na liście – informujemy, że jednak się dodało. */
   protected onAdded(task: Task): void {
-    const filters = { categoryId: this.filter(), todayOnly: this.todayOnly() };
-    if (!matchesFilters(task, filters, this.today())) {
+    if (!matchesFilters(task, this.filters(), this.today())) {
       this.toast.show({
         message: `Dodano „${shorten(task.title)}” – zadanie jest poza bieżącym filtrem`,
       });

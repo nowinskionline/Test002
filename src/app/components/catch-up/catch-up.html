@@ -1,0 +1,84 @@
+<section
+  id="catch-up-panel"
+  aria-labelledby="catch-up-title"
+  class="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-500/30 dark:bg-blue-500/10"
+>
+  <h2 id="catch-up-title" class="text-sm font-semibold text-blue-900 dark:text-blue-200">
+    Zacznij od tych{{ categoryName() ? ' (kategoria „' + categoryName() + '”)' : '' }}
+  </h2>
+
+  @if (pick().top.length) {
+    <ul class="mt-2 space-y-1">
+      @for (task of pick().top; track task.id) {
+        <li>
+          <ng-container *ngTemplateOutlet="row; context: { $implicit: task }" />
+        </li>
+      }
+    </ul>
+
+    @if (pick().rest.length) {
+      <button
+        type="button"
+        (click)="expanded.set(!expanded())"
+        [attr.aria-expanded]="expanded()"
+        aria-controls="catch-up-rest"
+        class="mt-2 min-h-11 rounded-lg px-2 text-sm font-medium text-blue-700 hover:bg-blue-100 sm:min-h-0 sm:py-1 dark:text-blue-300 dark:hover:bg-blue-500/15"
+      >
+        {{ expanded() ? 'Zwiń' : '+' + pick().rest.length + ' więcej' }}
+      </button>
+      @if (expanded()) {
+        <!-- Długa lista przewija się wewnątrz panelu i nie wypycha listy głównej (EC-14). -->
+        <ul id="catch-up-rest" class="mt-1 max-h-72 space-y-1 overflow-y-auto">
+          @for (task of pick().rest; track task.id) {
+            <li>
+              <ng-container *ngTemplateOutlet="row; context: { $implicit: task }" />
+            </li>
+          }
+        </ul>
+      }
+    }
+  } @else {
+    <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+      Brak zaległych i dzisiejszych zadań{{
+        categoryName() ? ' w kategorii „' + categoryName() + '”' : ''
+      }}
+    </p>
+  }
+
+  @if (pick().elsewhere) {
+    <!-- Panel respektuje filtr kategorii, ale nie chowa po cichu zaległych z innych kategorii (EC-11). -->
+    <p class="mt-2 flex flex-wrap items-center gap-x-2 text-sm text-slate-600 dark:text-slate-300">
+      W innych kategoriach: {{ pick().elsewhere }}
+      <button
+        type="button"
+        (click)="showAll.emit()"
+        class="min-h-11 rounded-lg px-2 font-medium text-blue-700 hover:bg-blue-100 sm:min-h-0 sm:py-1 dark:text-blue-300 dark:hover:bg-blue-500/15"
+      >
+        Pokaż wszystkie kategorie
+      </button>
+    </p>
+  }
+</section>
+
+<ng-template #row let-task>
+  <label
+    class="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg px-2 py-2 hover:bg-blue-100/60 dark:hover:bg-blue-500/10"
+  >
+    <input
+      type="checkbox"
+      (change)="taskService.toggleTask(task.id)"
+      [attr.aria-label]="'Zrobione: ' + task.title"
+      class="mt-0.5 size-5 shrink-0 cursor-pointer accent-blue-500"
+    />
+    <span class="min-w-0 flex-1 break-words">{{ task.title }}</span>
+    <span
+      class="shrink-0 text-xs font-medium"
+      [class]="
+        overdue(task) ? 'text-red-700 dark:text-red-300' : 'text-slate-600 dark:text-slate-300'
+      "
+    >
+      <span class="sr-only">Termin: </span>{{ dueText(task)
+      }}{{ overdue(task) ? ' · po terminie' : '' }}
+    </span>
+  </label>
+</ng-template>
