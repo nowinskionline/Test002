@@ -1,32 +1,48 @@
 <section aria-label="Lista zadań" class="space-y-4">
+  @if (active().length > 1) {
+    <div class="flex justify-end">
+      <!-- Jednorazowa akcja: przestawia ręczną kolejność, potem dalej można przeciągać. -->
+      <button
+        type="button"
+        (click)="sortByDue()"
+        class="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200/70 dark:text-slate-300 dark:hover:bg-slate-800"
+      >
+        Ułóż po terminie
+      </button>
+    </div>
+  }
+
   @if (active().length) {
     <ul cdkDropList (cdkDropListDropped)="drop($event)" class="space-y-2">
       @for (task of active(); track task.id) {
-        <li cdkDrag cdkDragLockAxis="y">
+        <li cdkDrag [cdkDragData]="task.id" cdkDragLockAxis="y">
           <app-task-item
             [task]="task"
             [categories]="taskService.categories()"
             [draggable]="true"
             (toggled)="taskService.toggleTask(task.id)"
             (removed)="remove(task)"
-            (edited)="edit(task, $event)"
+            (edited)="edited(task.id)"
+            (reviewed)="taskService.dismissReview(task.id)"
           />
         </li>
       }
     </ul>
   } @else {
-    <div class="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400">
-      @if (completed().length) {
-        <p class="text-lg">Wszystko zrobione 🎉</p>
-      } @else {
-        <p class="text-lg">Brak zadań</p>
-        <p class="mt-1 text-sm">Dodaj pierwsze zadanie powyżej.</p>
+    <div
+      class="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400"
+    >
+      <p class="text-lg">{{ emptyMessage().title }}</p>
+      @if (emptyMessage().hint) {
+        <p class="mt-1 text-sm">{{ emptyMessage().hint }}</p>
       }
     </div>
   }
 
   @if (completed().length) {
-    <label class="flex w-fit cursor-pointer items-center gap-2 text-sm text-slate-600 select-none dark:text-slate-400">
+    <label
+      class="flex w-fit cursor-pointer items-center gap-2 text-sm text-slate-600 select-none dark:text-slate-400"
+    >
       <input
         type="checkbox"
         [checked]="showCompleted()"
@@ -45,7 +61,7 @@
               [categories]="taskService.categories()"
               (toggled)="taskService.toggleTask(task.id)"
               (removed)="remove(task)"
-              (edited)="edit(task, $event)"
+              (edited)="edited(task.id)"
             />
           </li>
         }

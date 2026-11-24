@@ -6,12 +6,28 @@ export interface Category {
   color: CategoryColor;
 }
 
+/** Trudność zadania (tryb energii). Brak klucza = nieoznaczone. */
+export type Difficulty = 'light' | 'heavy';
+
+export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  light: 'lekkie',
+  heavy: 'ciężkie',
+};
+
 export interface Task {
   id: string;
   title: string;
   categoryId: string;
   completed: boolean;
   createdAt: number;
+  /** Termin: lokalna data "YYYY-MM-DD". Brak klucza = zadanie bez terminu. */
+  dueDate?: string;
+  /** Opcjonalna godzina "HH:mm" (24h). Ma sens tylko razem z dueDate. */
+  dueTime?: string;
+  /** Flaga "do przejrzenia" (szybki wrzut). Brak klucza = bez flagi; nigdy nie zapisujemy `false`. */
+  needsReview?: true;
+  /** Opcjonalna trudność; brak klucza = nieoznaczone. */
+  difficulty?: Difficulty;
 }
 
 export const DEFAULT_CATEGORIES: Category[] = [

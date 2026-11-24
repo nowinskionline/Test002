@@ -1,31 +1,80 @@
-<form (ngSubmit)="submit()" class="flex flex-col gap-2 sm:flex-row">
-  <label for="new-task" class="sr-only">Nowe zadanie</label>
-  <input
-    id="new-task"
-    name="title"
-    [(ngModel)]="title"
-    placeholder="Co masz do zrobienia?"
-    maxlength="200"
-    autocomplete="off"
-    class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-900"
-  />
-  <div class="flex gap-2">
-    <select
-      name="category"
-      [(ngModel)]="categoryId"
-      aria-label="Kategoria"
-      class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 sm:flex-none dark:border-slate-700 dark:bg-slate-900"
-    >
-      @for (category of categories(); track category.id) {
-        <option [value]="category.id">{{ category.name }}</option>
-      }
-    </select>
-    <button
-      type="submit"
-      [disabled]="!title().trim()"
-      class="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-500 focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
-    >
-      Dodaj
-    </button>
+<form (ngSubmit)="submit()" class="flex flex-col gap-2">
+  <div class="flex flex-col gap-2 sm:flex-row">
+    <label for="new-task" class="sr-only">Nowe zadanie</label>
+    <input
+      id="new-task"
+      name="title"
+      [(ngModel)]="title"
+      placeholder="Co masz do zrobienia?"
+      maxlength="200"
+      autocomplete="off"
+      class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-900"
+    />
+    <div class="flex gap-2">
+      <select
+        name="category"
+        [(ngModel)]="categoryId"
+        aria-label="Kategoria"
+        class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 sm:flex-none dark:border-slate-700 dark:bg-slate-900"
+      >
+        @for (category of categories(); track category.id) {
+          <option [value]="category.id">{{ category.name }}</option>
+        }
+      </select>
+      <button
+        type="submit"
+        [disabled]="!title().trim()"
+        class="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-500 focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        Dodaj
+      </button>
+    </div>
   </div>
+
+  <!-- Termin (opcjonalny): natywne pola daty i godziny -->
+  <div class="flex flex-wrap items-center gap-2 text-sm">
+    <label for="new-task-date" class="text-slate-600 dark:text-slate-400">Termin</label>
+    <input
+      id="new-task-date"
+      name="dueDate"
+      type="date"
+      min="1900-01-01"
+      max="2100-12-31"
+      [(ngModel)]="dueDate"
+      (ngModelChange)="error.set(null)"
+      [attr.aria-invalid]="error() ? true : null"
+      aria-describedby="new-task-error"
+      class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-900 dark:scheme-dark"
+    />
+    <label for="new-task-time" class="sr-only">Godzina (opcjonalna)</label>
+    <input
+      id="new-task-time"
+      name="dueTime"
+      type="time"
+      [(ngModel)]="dueTime"
+      (ngModelChange)="error.set(null)"
+      aria-describedby="new-task-error"
+      class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-900 dark:scheme-dark"
+    />
+    <!-- Trudność (opcjonalna) – używana przez tryb energii -->
+    <label for="new-task-difficulty" class="ml-2 text-slate-600 dark:text-slate-400"
+      >Trudność</label
+    >
+    <select
+      id="new-task-difficulty"
+      name="difficulty"
+      [(ngModel)]="difficulty"
+      class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-900"
+    >
+      <option value="">brak</option>
+      <option value="light">lekkie</option>
+      <option value="heavy">ciężkie</option>
+    </select>
+  </div>
+
+  @if (error()) {
+    <p id="new-task-error" class="text-sm text-rose-600 dark:text-rose-400" role="alert">
+      {{ error() }}
+    </p>
+  }
 </form>
