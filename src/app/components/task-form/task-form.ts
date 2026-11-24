@@ -1,6 +1,7 @@
-import { Component, input, linkedSignal, output, signal } from '@angular/core';
+import { Component, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Category } from '../../models/task.model';
+import { Category, Task } from '../../models/task.model';
+import { TASK_ERROR_MESSAGES, TaskService } from '../../services/task.service';
 
 @Component({
   selector: 'app-task-form',
@@ -8,10 +9,17 @@ import { Category } from '../../models/task.model';
   templateUrl: './task-form.html',
 })
 export class TaskForm {
+  private readonly taskService = inject(TaskService);
+
   readonly categories = input.required<Category[]>();
-  readonly added = output<{ title: string; categoryId: string }>();
+  /** Emitowane dopiero po udanym dodaniu (rodzic sprawdza, czy zadanie jest widoczne w filtrze). */
+  readonly added = output<Task>();
 
   protected readonly title = signal('');
+  /** Wartości natywnych pól <input type="date"> i <input type="time">; '' = puste pole. */
+  protected readonly dueDate = signal('');
+  protected readonly dueTime = signal('');
+  protected readonly error = signal<string | null>(null);
 
   /**
    * linkedSignal: wartość, którą można ustawiać ręcznie, ale która "przelicza się",
@@ -24,9 +32,20 @@ export class TaskForm {
   });
 
   protected submit(): void {
-    const title = this.title().trim();
-    if (!title) return;
-    this.added.emit({ title, categoryId: this.categoryId() });
+    if (!this.title().trim()) return;
+    const result = this.taskService.addTask(this.title(), this.categoryId(), {
+      dueDate: this.dueDate() || null,
+      dueTime: this.dueTime() || null,
+    });
+    // Przy błędzie NIE czyścimy formularza – użytkownik poprawia termin i próbuje ponownie.
+    if (!result.ok) {
+      this.error.set(TASK_ERROR_MESSAGES[result.error]);
+      return;
+    }
     this.title.set('');
+    this.dueDate.set('');
+    this.dueTime.set('');
+    this.error.set(null);
+    this.added.emit(result.task);
   }
 }

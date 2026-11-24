@@ -26,26 +26,47 @@
   />
 
   @if (editing()) {
-    <form (ngSubmit)="save()" (keydown.escape)="cancel()" class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row">
-      <input
-        #titleInput
-        name="title"
-        [(ngModel)]="draftTitle"
-        maxlength="200"
-        aria-label="Treść zadania"
-        class="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-950"
-      />
-      <select
-        name="category"
-        [(ngModel)]="draftCategoryId"
-        aria-label="Kategoria"
-        class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950"
-      >
-        @for (c of categories(); track c.id) {
-          <option [value]="c.id">{{ c.name }}</option>
-        }
-      </select>
-      <div class="flex gap-2">
+    <form (ngSubmit)="save()" (keydown.escape)="cancel()" class="flex min-w-0 flex-1 flex-col gap-2">
+      <div class="flex min-w-0 flex-col gap-2 sm:flex-row">
+        <input
+          #titleInput
+          name="title"
+          [(ngModel)]="draftTitle"
+          maxlength="200"
+          aria-label="Treść zadania"
+          class="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-950"
+        />
+        <select
+          name="category"
+          [(ngModel)]="draftCategoryId"
+          aria-label="Kategoria"
+          class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950"
+        >
+          @for (c of categories(); track c.id) {
+            <option [value]="c.id">{{ c.name }}</option>
+          }
+        </select>
+      </div>
+      <!-- Termin: puste pole daty = brak terminu -->
+      <div class="flex flex-wrap items-center gap-2">
+        <input
+          name="dueDate"
+          type="date"
+          min="1900-01-01"
+          max="2100-12-31"
+          [(ngModel)]="draftDueDate"
+          (ngModelChange)="error.set(null)"
+          aria-label="Data terminu"
+          class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:scheme-dark"
+        />
+        <input
+          name="dueTime"
+          type="time"
+          [(ngModel)]="draftDueTime"
+          (ngModelChange)="error.set(null)"
+          aria-label="Godzina terminu (opcjonalna)"
+          class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:scheme-dark"
+        />
         <button type="submit" [disabled]="!draftTitle().trim()" class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-40">
           Zapisz
         </button>
@@ -53,15 +74,31 @@
           Anuluj
         </button>
       </div>
+      @if (error()) {
+        <p class="text-sm text-rose-600 dark:text-rose-400" role="alert">{{ error() }}</p>
+      }
     </form>
   } @else {
     <div class="min-w-0 flex-1" (dblclick)="startEdit()">
       <p class="break-words" [class.line-through]="task().completed">{{ task().title }}</p>
-      @if (category(); as c) {
-        <span class="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium" [class]="colors[c.color].badge">
-          {{ c.name }}
-        </span>
-      }
+      <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+        @if (category(); as c) {
+          <span class="inline-block rounded-full px-2 py-0.5 text-xs font-medium" [class]="colors[c.color].badge">
+            {{ c.name }}
+          </span>
+        }
+        @if (dueText()) {
+          <!-- Zaległe: czerwony tekst terminu + etykieta; pozostałe i ukończone: stonowany szary. -->
+          <span class="text-xs font-medium" [class]="overdue() ? 'text-red-700 dark:text-red-300' : 'text-slate-600 dark:text-slate-300'">
+            <span class="sr-only">Termin: </span>{{ dueText() }}
+          </span>
+        }
+        @if (overdue()) {
+          <span class="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 dark:bg-red-500/15 dark:text-red-300">
+            Po terminie
+          </span>
+        }
+      </div>
     </div>
 
     <div class="flex shrink-0 gap-1 transition sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">

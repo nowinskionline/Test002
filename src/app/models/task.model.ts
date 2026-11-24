@@ -12,6 +12,10 @@ export interface Task {
   categoryId: string;
   completed: boolean;
   createdAt: number;
+  /** Termin: lokalna data "YYYY-MM-DD". Brak klucza = zadanie bez terminu. */
+  dueDate?: string;
+  /** Opcjonalna godzina "HH:mm" (24h). Ma sens tylko razem z dueDate. */
+  dueTime?: string;
 }
 
 export const DEFAULT_CATEGORIES: Category[] = [

@@ -1,11 +1,14 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { CATEGORY_COLORS } from './models/task.model';
+import { CATEGORY_COLORS, Task } from './models/task.model';
 import { version } from '../../package.json';
 import { TaskService } from './services/task.service';
 import { ThemeService } from './services/theme.service';
+import { TodayService } from './services/today.service';
+import { ToastService } from './services/toast.service';
+import { matchesFilters } from './utils/task-filters';
 import { CategoryManager } from './components/category-manager/category-manager';
 import { TaskForm } from './components/task-form/task-form';
-import { TaskList } from './components/task-list/task-list';
+import { shorten, TaskList } from './components/task-list/task-list';
 import { ToastComponent } from './components/toast/toast';
 
 @Component({
@@ -16,12 +19,16 @@ import { ToastComponent } from './components/toast/toast';
 export class App {
   protected readonly taskService = inject(TaskService);
   protected readonly theme = inject(ThemeService);
+  private readonly toast = inject(ToastService);
+  private readonly today = inject(TodayService).today;
   protected readonly colors = CATEGORY_COLORS;
   /** Wersja czytana z package.json – zmieniasz ją w jednym miejscu. */
   protected readonly version = version;
 
   protected readonly showCategories = signal(false);
   private readonly selectedFilter = signal<string | null>(null);
+  /** Filtr "Dziś" – łączy się z filtrem kategorii; nie jest zapisywany (jak "Pokaż ukończone"). */
+  protected readonly todayOnly = signal(false);
 
   /** Jeśli wybrana kategoria zniknie, wracamy do "Wszystkie". */
   protected readonly filter = computed(() => {
@@ -31,5 +38,15 @@ export class App {
 
   protected setFilter(id: string | null): void {
     this.selectedFilter.set(id);
+  }
+
+  /** Nowe zadanie poza bieżącym filtrem nie pojawi się na liście – informujemy, że jednak się dodało. */
+  protected onAdded(task: Task): void {
+    const filters = { categoryId: this.filter(), todayOnly: this.todayOnly() };
+    if (!matchesFilters(task, filters, this.today())) {
+      this.toast.show({
+        message: `Dodano „${shorten(task.title)}” – zadanie jest poza bieżącym filtrem`,
+      });
+    }
   }
 }

@@ -27,9 +27,34 @@
     </button>
   </header>
 
-  <app-task-form [categories]="taskService.categories()" (added)="taskService.addTask($event.title, $event.categoryId)" />
+  @if (taskService.saveFailed()) {
+    <!-- Trwały baner: nie znika sam i nie wypiera toasta "Cofnij". -->
+    <div
+      role="alert"
+      class="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-300"
+    >
+      <p class="min-w-0 flex-1">Nie udało się zapisać zmian. Po odświeżeniu mogą zniknąć.</p>
+      <button type="button" (click)="taskService.saveFailed.set(false)" aria-label="Zamknij komunikat" class="rounded-md p-1 hover:bg-red-100 dark:hover:bg-red-500/20">
+        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" d="M6 6l12 12M18 6 6 18" />
+        </svg>
+      </button>
+    </div>
+  }
 
-  <nav aria-label="Filtr kategorii" class="flex flex-wrap items-center gap-2">
+  <app-task-form [categories]="taskService.categories()" (added)="onAdded($event)" />
+
+  <nav aria-label="Filtry" class="flex flex-wrap items-center gap-2">
+    <button
+      type="button"
+      (click)="todayOnly.set(!todayOnly())"
+      [attr.aria-pressed]="todayOnly()"
+      class="rounded-full px-3 py-1 text-sm font-medium transition"
+      [class]="todayOnly() ? 'bg-blue-600 text-white' : 'bg-slate-200/70 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'"
+    >
+      Dziś
+    </button>
+    <span class="h-5 w-px bg-slate-300 dark:bg-slate-700" aria-hidden="true"></span>
     <button
       type="button"
       (click)="setFilter(null)"
@@ -78,7 +103,7 @@
     <app-category-manager />
   }
 
-  <app-task-list [categoryFilter]="filter()" />
+  <app-task-list [categoryFilter]="filter()" [todayOnly]="todayOnly()" />
 
   <p class="text-center text-xs text-slate-400 dark:text-slate-600">
     Dwuklik na zadaniu = edycja · Przeciągnij za uchwyt, aby zmienić kolejność

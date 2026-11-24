@@ -9,7 +9,7 @@ Prosta lista zadań z kategoriami. Projekt do nauki Angulara.
 ```bash
 npm install
 npm start        # http://localhost:4200
-npm test         # jeden przykładowy test serwisu
+npm test         # testy jednostkowe (Vitest)
 npm run build    # wersja produkcyjna w dist/
 ```
 
@@ -23,8 +23,17 @@ npm run build    # wersja produkcyjna w dist/
 - filtr po kategorii
 - ukończone zadania są ukryte na dole, z przełącznikiem „Pokaż ukończone”
 - zmiana kolejności przez przeciąganie
+- opcjonalny termin zadania (data + opcjonalna godzina) przy dodawaniu i edycji; wyświetlany względnie („dziś”, „jutro 09:30”, „sb 28.11”)
+- zaległe zadania (termin przed dzisiejszym dniem, nieukończone) mają czerwony termin i etykietę „Po terminie”; status przelicza się sam o północy
+- filtr „Dziś” (zadania na dziś + zaległe), łączony z filtrem kategorii
+- jednorazowa akcja „Ułóż po terminie” z opcją „Cofnij” (ręczna kolejność pozostaje nadrzędna)
+- komunikat, gdy zmian nie udało się zapisać w `localStorage`
 - jasny i ciemny motyw (domyślnie ciemny)
-- wszystko zapisywane w `localStorage`
+- wszystko zapisywane w `localStorage`; uszkodzone dane są pomijane przy wczytaniu, a oryginał trafia do kopii `todoartur.tasks.backup`
+
+> **Ograniczenie: kilka kart naraz.** Karty nie synchronizują się. Przykład utraty danych: w karcie A
+> dodajesz zadanie, potem w otwartej od wczoraj karcie B odhaczasz inne zadanie – karta B zapisuje
+> swój (stary) stan i zadanie dodane w A znika. Pracuj w jednej karcie.
 
 ## Struktura
 
@@ -33,10 +42,14 @@ src/app/
 ├── models/task.model.ts          # typy Task/Category, domyślne kategorie, kolory
 ├── services/
 │   ├── task.service.ts           # stan aplikacji (signals) + zapis do localStorage
-│   ├── task.service.spec.ts      # test
+│   ├── task.service.spec.ts      # testy serwisu
+│   ├── today.service.ts          # sygnał "dziś" (odświeżany o północy)
 │   ├── toast.service.ts          # komunikat z akcją "Cofnij"
 │   ├── theme.service.ts          # jasny/ciemny motyw
 │   └── storage.ts                # bezpieczny odczyt/zapis localStorage
+├── utils/
+│   ├── due-date.ts               # terminy: walidacja, dziś/zaległe, format, sortowanie
+│   └── task-filters.ts           # łączenie filtra kategorii i "Dziś"
 ├── components/
 │   ├── task-form/                # dodawanie zadania
 │   ├── task-list/                # lista aktywnych + ukończonych, drag & drop

@@ -8,7 +8,17 @@ Trzech sub-agentów (`.claude/agents/`) uruchamianych komendą `/build-spec`:
 | 2 | `story-architect` | `output/02-user-stories-spec.md` |
 | 3 | `qa-edgecase-reviewer` | `output/03-qa-review-report.md` |
 
-## Użycie
+## Pełny łańcuch z implementacją: `/build-feature`
+
+`/build-feature docs/ba/input/plik.md` przechodzi przez kroki:
+0. grill: gdy notatki są mgliste, agent przygotowuje drzewo pytań, a główna sesja Cię magluje (skill `grill-me`). Odpowiedzi trafiają do `input/<nazwa>-decyzje.md`.
+1–3. wymagania → User Stories → audyt QA (jak w `/build-spec`).
+4. bramka: jeśli QA znajdzie blokery wymagające Twojej decyzji, łańcuch staje i pyta.
+5. `app-builder` (opus) implementuje w `src/`, dopisuje testy, odpala build i testy, a raport zapisuje w `output/04-implementation-report.md`.
+
+Skill `grill-me` możesz też wywołać sam (`/grill-me`), żeby przemaglować dowolny pomysł.
+
+## Użycie `/build-spec` (sama specyfikacja)
 
 1. Wrzuć notatki, transkrypcję albo maila do `docs/ba/input/` (np. `nowa-funkcja.md`).
 2. W katalogu projektu uruchom `claude` i wpisz:
